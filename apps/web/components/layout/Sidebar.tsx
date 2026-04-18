@@ -10,6 +10,7 @@ import {
   DollarSign,
   Wrench,
   CalendarCheck,
+  BarChart2,
   Settings,
   LogOut,
 } from 'lucide-react'
@@ -62,10 +63,16 @@ const NAV_ITEMS: NavItem[] = [
     roles: ['admin', 'maintenance'],
   },
   {
-    href: '/dashboard/bookings',
-    label: 'الحجوزات',
+    href: '/dashboard/business-center',
+    label: 'البزنس سنتر',
     icon: CalendarCheck,
     roles: ['admin', 'manager'],
+  },
+  {
+    href: '/dashboard/reports',
+    label: 'التقارير',
+    icon: BarChart2,
+    roles: ['admin', 'manager', 'accountant'],
   },
 ]
 

@@ -47,7 +47,7 @@ export default async function DashboardLayout({
         openMaintenanceCount={openMaintenanceCount ?? 0}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Header user={profile} />
+        <Header user={profile} userId={user.id} />
         <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>

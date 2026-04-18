@@ -15,6 +15,7 @@ import {
   XCircle,
   Ban,
   CreditCard,
+  Printer,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -156,6 +157,22 @@ export function InvoicesClient({ invoices, tenants, contracts, properties }: Inv
       tenant_name: inv.tenant?.full_name ?? '—',
     })
     setPaymentOpen(true)
+  }
+
+  const handlePrintInvoice = async (inv: InvoiceRow) => {
+    try {
+      const { generateInvoicePDF } = await import('@/components/pdf/generate')
+      const blob = await generateInvoicePDF(inv)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${inv.invoice_number}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Invoice PDF error:', err)
+      toast.error('حدث خطأ أثناء توليد PDF')
+    }
   }
 
   const handleCancelInvoice = (id: string) => {
@@ -350,6 +367,13 @@ export function InvoicesClient({ invoices, tenants, contracts, properties }: Inv
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
+                          <button
+                            onClick={() => handlePrintInvoice(inv)}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
+                            title="طباعة الفاتورة PDF"
+                          >
+                            <Printer className="h-3.5 w-3.5" />
+                          </button>
                           {canPay && (
                             <button
                               onClick={() => handleOpenPayment(inv)}

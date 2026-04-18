@@ -27,6 +27,14 @@ export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed'
 
 export type TenantStatus = 'active' | 'inactive' | 'blacklisted'
 
+export type NotificationType =
+  | 'overdue_invoice'
+  | 'expiring_contract'
+  | 'new_maintenance'
+  | 'new_booking'
+
+export type NotificationEntityType = 'invoice' | 'contract' | 'maintenance' | 'booking'
+
 // ============================================================
 // DATABASE MODELS (mirrors Supabase tables)
 // ============================================================
@@ -181,6 +189,18 @@ export interface Booking {
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+export interface Notification {
+  id: string
+  user_id: string
+  type: NotificationType
+  title: string
+  body: string
+  read: boolean
+  entity_id: string | null
+  entity_type: NotificationEntityType | null
+  created_at: string
 }
 
 // ============================================================
@@ -351,6 +371,11 @@ export interface Database {
         Row: Booking
         Insert: Omit<Booking, 'id' | 'created_at' | 'updated_at'>
         Update: Partial<Omit<Booking, 'id' | 'created_at'>>
+      }
+      notifications: {
+        Row: Notification
+        Insert: Omit<Notification, 'id' | 'created_at'>
+        Update: Partial<Pick<Notification, 'read'>>
       }
     }
   }

@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-10 — إضافة نظام إدارة الصيانة الكامل  
+**آخر تحديث:** 2026-04-14 — إضافة نظام الإشعارات المتكامل (Realtime + Email + WhatsApp)  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -251,6 +251,7 @@ const supabase = createClient(
 | `/dashboard/invoices` | الفواتير والمدفوعات | FinancialOverview + Bar chart + جدول فواتير كامل |
 | `/dashboard/maintenance` | طلبات الصيانة | MaintenanceStats + MaintenanceClient (جدول + Kanban) |
 | `/dashboard/bookings` | حجوزات القاعات | جدول الحجوزات |
+| `/dashboard/reports` | التقارير | 4 استعلامات متوازية (paid invoices, units, overdue, bookings) |
 | `(auth)/login` | تسجيل الدخول | — |
 
 ---
@@ -365,6 +366,37 @@ const supabase = createClient(
 - Radix UI يُصدر warning في console إذا لم يكن `DialogContent` مصحوباً بـ `DialogDescription` أو `aria-describedby`.
 - الحل: إضافة `<DialogDescription className="sr-only">وصف مختصر</DialogDescription>` داخل كل `DialogHeader`.
 
+### 8.18 React — مكونات داخلية (Inner Components) Anti-Pattern
+- تعريف function components داخل body مكوّن آخر (مثل `function StatsBar() { return ... }` داخل `BookingsPageClient`) يُسبب إعادة mount كاملة عند كل render للـ parent.
+- النتيجة: فقدان state الـ dialog (يُفتح ويُغلق فوراً)، تدمير input values، مشاكل في animations.
+- الحل: نقل المكونات إلى ملفات منفصلة أو inline كـ JSX مباشرةً داخل `return` باستخدام `{condition && (...)}`.
+- النمط المُستخدم في `BookingsPageClient.tsx`: كل JSX مُدمج مباشرةً في الـ return بدون أي inner function components.
+
+### 8.19 DB Trigger — منع تداخل الحجوزات
+- يوجد trigger في DB يُسمّى `prevent_booking_overlap` يمنع إنشاء حجزين متداخلين على نفس القاعة.
+- إذا حدث تداخل، يُرجع خطأ يحتوي على `"overlap"` — يُكتشف في `createBooking` action:
+  ```ts
+  if (err.message?.includes('overlap')) return { ..., error: 'هذا الوقت محجوز بالفعل لهذه القاعة' }
+  ```
+
+### 8.21 نظام التقارير وتوليد PDF
+- الحزم المُضافة: `@react-pdf/renderer ^3.4.4`, `xlsx ^0.18.5`
+- `serverExternalPackages: ['@react-pdf/renderer', 'canvas']` مُضافة في `next.config.ts` لمنع استيراد المكتبة server-side.
+- `@react-pdf/renderer` مع React 19: تعارض في أنواع ReactNode — الحل: `children: any` في المكونات الداخلية.
+- **توليد PDF**: دائماً عبر `import('@react-pdf/renderer')` الديناميكي + `pdf(<Document />).toBlob()` ثم إنشاء رابط تنزيل مؤقت.
+- **Chart Snapshot**: تحويل SVG الـ Recharts إلى PNG عبر `XMLSerializer` + `Canvas API` بدون html2canvas.
+- **خط عربي**: Cairo من CDN `@fontsource/cairo` — يستلزم إنترنت. للإنتاج: حمّل Cairo.woff إلى `public/fonts/` وعدّل `fonts.ts`.
+- **تصدير Excel**: `xlsx` مع `exportToExcel()` في `lib/excel-export.ts` — تصدير مباشر client-side.
+- **صفحة التقارير** (`/dashboard/reports`): 4 تبويبات (مالي / إشغال / متأخرات / بزنس سنتر)، كل تبويب: Recharts chart + جدول + Excel + PDF.
+- **زر طباعة العقد**: في `ContractDetailClient` — يستقبل `contract?: ContractForPDF` من `[id]/page.tsx`.
+- **زر طباعة الفاتورة**: أيقونة Printer تظهر عند hover على صف الفاتورة في `InvoicesClient`.
+
+### 8.20 حساب مبلغ الحجز تلقائياً (Client-side)
+- `hourly`: `hours × hourly_rate` (محسوب من الفرق بين start_time و end_time بالمللي ثانية ÷ 3600000)
+- `half_day`: `half_day_rate` مباشرةً (مع auto-set لـ end_time = start_time + 4 ساعات)
+- `full_day`: `full_day_rate` مباشرةً (مع auto-set لـ end_time = start_time + 8 ساعات)
+- النتيجة ترسل في `FormData` كـ `amount` وتُحفظ في DB بدون إعادة حساب.
+
 ---
 
 ## 9. أوامر التطوير
@@ -392,7 +424,139 @@ npm run format
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...   # مطلوب لرفع الصور على Storage
+
+# Resend (إشعارات البريد)
+RESEND_API_KEY=re_xxxx
+FROM_EMAIL=noreply@yourdomain.com
+APP_NAME="Real Estate Manager"
+
+# Twilio WhatsApp (اختياري)
+TWILIO_ACCOUNT_SID=ACxxxx
+TWILIO_AUTH_TOKEN=xxxx
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 ```
+
+---
+
+## 12. نظام الإشعارات (مكتمل — 2026-04-14)
+
+### الملفات المُنشأة أو المُعدَّلة
+
+| الملف | الحالة | الوصف |
+|---|---|---|
+| `supabase/migrations/008_notifications.sql` | جديد | جدول notifications + RLS + Realtime + Triggers + دوال DB |
+| `packages/types/src/index.ts` | معدَّل | `NotificationType`, `NotificationEntityType`, `Notification` interface + Database type |
+| `apps/web/components/notifications/NotificationCenter.tsx` | جديد | Bell icon + badge + Dropdown + Realtime subscription |
+| `apps/web/components/layout/Header.tsx` | معدَّل | يستخدم `NotificationCenter` بدل Bell ثابت |
+| `apps/web/app/(dashboard)/layout.tsx` | معدَّل | يمرر `userId` لـ Header |
+| `supabase/functions/check-overdue-invoices/index.ts` | جديد | Edge Function: Cron يومي — فحص فواتير + إشعارات + email 7 أيام |
+| `supabase/functions/send-booking-confirmation/index.ts` | جديد | Edge Function: تأكيد حجز بالبريد (Resend) |
+| `supabase/functions/weekly-admin-report/index.ts` | جديد | Edge Function: تقرير أسبوعي للـ admin |
+| `supabase/functions/send-whatsapp/index.ts` | جديد | Edge Function: إشعار WhatsApp عبر Twilio (اختياري) |
+| `supabase/functions/.env` | جديد | متغيرات Edge Functions (Resend + Twilio) |
+
+### جدول notifications
+
+```sql
+notifications(
+  id          uuid PK,
+  user_id     uuid FK → auth.users,
+  type        text  -- 'overdue_invoice' | 'expiring_contract' | 'new_maintenance' | 'new_booking'
+  title       text,
+  body        text,
+  read        boolean DEFAULT false,
+  entity_id   uuid nullable,   -- مرجع الكيان (invoice_id / contract_id / ...)
+  entity_type text nullable,   -- 'invoice' | 'contract' | 'maintenance' | 'booking'
+  created_at  timestamptz
+)
+```
+
+### دوال DB المُنشأة
+
+| الدالة | الوظيفة |
+|---|---|
+| `create_notification(user_id, type, title, body, entity_id, entity_type)` | إنشاء إشعار واحد |
+| `notify_admins_and_managers(type, title, body, entity_id, entity_type)` | إشعار جميع admin+manager |
+| `check_and_notify_overdue_invoices()` | يومياً: تحديث overdue + إنشاء إشعارات |
+| `check_and_notify_expiring_contracts()` | يومياً: إشعارات للعقود التي تنتهي خلال 30 يوم |
+| `notify_new_maintenance()` | Trigger: إشعار تلقائي عند maintenance جديد |
+| `notify_new_booking()` | Trigger: إشعار تلقائي عند booking جديد |
+
+### Triggers التلقائية
+
+| الـ Trigger | الجدول | الوظيفة |
+|---|---|---|
+| `trg_notify_new_maintenance` | `maintenance_requests` | إشعار admin+manager عند كل INSERT |
+| `trg_notify_new_booking` | `bookings` | إشعار admin+manager عند كل INSERT |
+
+### Cron Jobs — إعداد في Supabase Dashboard
+
+انتقل إلى: **Supabase Dashboard > Edge Functions > Schedule (Cron)**
+
+| الـ Function | الـ Schedule | التوقيت | الوظيفة |
+|---|---|---|---|
+| `check-overdue-invoices` | `0 4 * * *` | يومياً 08:00 دبي | فحص فواتير + إشعارات + email 7 أيام |
+| `weekly-admin-report` | `0 4 * * 1` | الاثنين 08:00 دبي | تقرير أسبوعي بالإيميل لـ admin |
+
+**HTTP Method:** POST  
+**Authorization Header:** `Bearer <SUPABASE_SERVICE_ROLE_KEY>`
+
+### إعداد Resend
+
+1. إنشاء حساب على [resend.com](https://resend.com)
+2. التحقق من الدومين أو استخدام `onboarding@resend.dev` للتطوير
+3. إنشاء API Key وإضافته في Edge Functions Secrets:
+   ```bash
+   supabase secrets set RESEND_API_KEY=re_xxxx
+   supabase secrets set FROM_EMAIL=noreply@yourdomain.com
+   supabase secrets set APP_NAME="Real Estate Manager"
+   ```
+
+### إعداد Twilio WhatsApp (اختياري)
+
+1. إنشاء حساب Twilio واختبار الـ Sandbox
+2. إضافة الـ secrets:
+   ```bash
+   supabase secrets set TWILIO_ACCOUNT_SID=ACxxxx
+   supabase secrets set TWILIO_AUTH_TOKEN=xxxx
+   supabase secrets set TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+   ```
+3. استدعاء الـ function:
+   ```ts
+   // من Server Action عند الحاجة:
+   await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-whatsapp`, {
+     method: 'POST',
+     headers: {
+       'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+       'Content-Type': 'application/json',
+     },
+     body: JSON.stringify({ invoice_id: '...' }),
+   })
+   ```
+
+### استدعاء send-booking-confirmation من Server Action
+
+في `apps/web/app/(dashboard)/dashboard/bookings/actions.ts` أضف بعد إنشاء الحجز:
+
+```ts
+// إرسال تأكيد بالبريد (fire-and-forget)
+fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-booking-confirmation`, {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ booking_id: newBooking.id }),
+}).catch(() => {}) // لا تعطّل العملية إذا فشل الإيميل
+```
+
+### 8.22 NotificationCenter — نمط آمن مع Realtime
+
+- `NotificationCenter` هو Client Component يستخدم `createClient()` (browser client).
+- يُمرَّر `userId` من Server Component (Dashboard Layout) — لا يُستدعى `supabase.auth.getUser()` داخله.
+- Realtime channel يُنشأ مرة واحدة في `useEffect` ويُلغى عند unmount.
+- Badge count يُحسب من `notifications.filter(n => !n.read).length` — يتحدث تلقائياً مع كل INSERT.
+- قاعدة RLS تضمن أن الـ filter `user_id=eq.${userId}` في الـ channel يطابق ما تسمح به الـ policy.
 
 ---
 
@@ -715,12 +879,79 @@ SUPABASE_SERVICE_ROLE_KEY=...   # مطلوب لرفع الصور على Storage
 
 ---
 
-## 19. ما لم يُنجز بعد
+## 19. وحدة قاعات الاجتماعات والحجوزات (مكتملة — 2026-04-13)
+
+### Migrations المطبَّقة
+
+| الملف | الحالة | المحتوى |
+|---|---|---|
+| `008_fix_bookings_rls.sql` | ✅ مطبَّق | إصلاح `JOIN auth.users` bug في: `bookings_select` + `tenants_select` + `contracts_select` — إعادة كتابتها بدون أي JOIN |
+
+### الملفات المُنشأة
+
+| الملف | الوصف |
+|---|---|
+| `apps/web/app/(dashboard)/dashboard/bookings/page.tsx` | Server Component — 6 استعلامات متوازية + حساب todayCount + upcomingCount + monthRevenue |
+| `apps/web/app/(dashboard)/dashboard/bookings/actions.ts` | Server Actions: `createBooking`, `updateBookingStatus`, `createMeetingRoom`, `updateMeetingRoom`, `deleteMeetingRoom` |
+| `apps/web/components/bookings/BookingsPageClient.tsx` | واجهة التبويبات: الحجوزات / القاعات — كل JSX inline بدون inner components |
+| `apps/web/components/bookings/BookingFormDialog.tsx` | Dialog حجز جديد: اختيار القاعة، المستأجر، النوع، التواريخ، الحساب التلقائي للمبلغ |
+| `apps/web/components/bookings/UpdateBookingDialog.tsx` | Dialog تحديث الحجز: عرض ملخص + تغيير الحالة |
+| `apps/web/components/bookings/MeetingRoomFormDialog.tsx` | Dialog إضافة/تعديل قاعة: الاسم، السعة، 3 أسعار، الحالة، الوصف |
+
+### ميزات الصفحة `/dashboard/bookings`
+
+**Stats Bar (أعلى الصفحة):**
+- **4 KPI cards**: حجوزات اليوم / قادمة / عدد القاعات / إيرادات الشهر (د.إ)
+- الإيرادات تشمل فقط الحجوزات بحالة `confirmed` أو `completed`
+
+**تبويب الحجوزات:**
+- جدول الحجوزات: القاعة+العقار، المستأجر، النوع، وقت البدء، المدة، المبلغ، الحالة، زر تعديل
+- **فلتر العقار** بـ Select
+- **فلتر الحالة**: الكل / معلق / مؤكد / منتهٍ / ملغي
+- **حالات مرمّزة بالألوان**: معلق (أصفر) / مؤكد (أخضر) / منتهٍ (رمادي) / ملغي (أحمر)
+- **Empty state** يقترح الانتقال لتبويب القاعات إذا لم توجد قاعات بعد
+
+**تبويب القاعات:**
+- بطاقات Grid للقاعات: اسم القاعة، العقار، السعة، الأسعار الثلاثة، الحالة، أزرار تعديل/حذف
+- **حالات القاعة**: متاحة (أخضر) / غير متاحة (رمادي) / صيانة (برتقالي)
+- **Empty state** بارز مع زر "إضافة أول قاعة" مباشرةً
+
+**BookingFormDialog:**
+- Combobox للقاعات (يعرض فقط الـ `available`) مع اسم العقار كـ `sub`
+- لوحة معلومات الأسعار تظهر عند اختيار القاعة (ساعي / نصف يوم / يوم كامل)
+- Combobox للمستأجر (اختياري)
+- Select لنوع الحجز: بالساعة / نصف يوم (4 ساعات) / يوم كامل (8 ساعات)
+- `useEffect` يضبط `end_time` تلقائياً عند تغيير النوع أو `start_time`
+- مربع "إجمالي الحجز" يُحدَّث لحظياً بناءً على الاختيارات
+- كشف خطأ تداخل الحجوزات (`overlap`) وعرضه للمستخدم
+
+**UpdateBookingDialog:**
+- ملخص الحجز: القاعة، العقار، الوقت، المستأجر، النوع، المبلغ
+- Select للحالة الجديدة مع تعطيل زر "حفظ" إذا لم تتغير الحالة
+- `variant="destructive"` تلقائياً عند اختيار "ملغي"
+
+**MeetingRoomFormDialog:**
+- `isEdit = !!room` — نفس الـ Dialog للإضافة والتعديل
+- Combobox للعقار
+- شبكة أسعار 3 أعمدة: ساعي / نصف يوم / يوم كامل
+- Select للحالة: متاحة / غير متاحة / صيانة
+
+### البنية التقنية
+
+- **Server Actions**: كل CRUD عبر `useTransition` + `startTransition` + `useState` للأخطاء
+- **لا inner function components**: `BookingsPageClient.tsx` يُدمج كل JSX مباشرةً لمنع React remount bug
+- **Action button ديناميكي**: يتبدّل بين "حجز جديد" و"إضافة قاعة" حسب التبويب النشط
+- **حذف القاعة**: `confirm()` client-side + `deleteMeetingRoom` Server Action + revalidatePath
+
+---
+
+## 20. ما لم يُنجز بعد
 
 - [ ] صفحة `access_denied` مخصصة بدلاً من redirect صامت
 - [ ] تحسين الأداء: تخزين الدور في JWT custom claims
 - [ ] تطبيق الجوال (هيكل فارغ حتى الآن)
 - [ ] إعداد Supabase Edge Functions أو pg_cron لـ `mark_overdue_invoices()` تلقائياً كل يوم
 - [ ] إعداد Supabase Edge Functions أو pg_cron لـ `generate_monthly_invoices()` تلقائياً أول كل شهر
-- [ ] صفحة الحجوزات (bookings) — هيكل موجود لكن بدون تطبيق
+- [ ] تطبيق Migration 007 في Supabase Dashboard (maintenance RLS + Realtime)
+- [ ] تطبيق Migration 008 في Supabase Dashboard (bookings/tenants/contracts RLS fix)
 - [ ] اختبارات (لا توجد بعد)

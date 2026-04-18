@@ -2,6 +2,7 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   transpilePackages: ['@repo/ui', '@repo/types'],
+  serverExternalPackages: ['@react-pdf/renderer', 'canvas'],
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {

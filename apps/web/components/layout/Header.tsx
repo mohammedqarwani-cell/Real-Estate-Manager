@@ -1,11 +1,13 @@
-import { Bell, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import type { Profile } from '@repo/types'
+import { NotificationCenter } from '@/components/notifications/NotificationCenter'
 
 interface HeaderProps {
   user: Profile | null
+  userId: string
 }
 
-export function Header({ user }: HeaderProps) {
+export function Header({ user, userId }: HeaderProps) {
   return (
     <header className="h-14 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex items-center justify-between px-6 shrink-0">
       {/* Search */}
@@ -16,9 +18,7 @@ export function Header({ user }: HeaderProps) {
 
       {/* Right side */}
       <div className="flex items-center gap-3">
-        <button className="relative p-2 rounded-lg hover:bg-muted transition-colors">
-          <Bell className="h-4 w-4" />
-        </button>
+        <NotificationCenter userId={userId} />
 
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">

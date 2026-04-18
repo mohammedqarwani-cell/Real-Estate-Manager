@@ -27,10 +27,16 @@ const STATUS_CONFIG: Record<ContractStatus, { label: string; className: string; 
   renewed:    { label: 'مجدد',   className: 'bg-blue-100 text-blue-700',    dotClass: 'bg-blue-500'   },
 }
 
-const PAYMENT_CYCLE_LABELS: Record<string, string> = {
-  monthly: 'شهري',
-  quarterly: 'ربعي',
-  annually: 'سنوي',
+function paymentMethodLabel(contract: ContractWithRelations): string {
+  const count = (contract as any).payment_count
+  if (!count || count === 0) {
+    const cycle = (contract as any).payment_cycle ?? 'monthly'
+    return cycle === 'monthly' ? 'شهري' : cycle === 'quarterly' ? 'ربعي' : 'سنوي'
+  }
+  if (count === 1)  return 'دفعة واحدة'
+  if (count === 2)  return 'دفعتان'
+  if (count === 12) return 'شهري (12)'
+  return `${count} دفعات`
 }
 
 // ─── Status Badge ──────────────────────────────────────────────────────────
@@ -200,8 +206,8 @@ export function ContractsClient({
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الوحدة</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">تاريخ البداية</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">تاريخ النهاية</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الإيجار</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">دورة الدفع</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الإيجار السنوي</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الدفعة</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الحالة</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -236,11 +242,24 @@ export function ContractsClient({
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-semibold">
-                        {c.monthly_rent.toLocaleString('ar-AE')} د.إ
+                      <td className="px-4 py-3">
+                        <div className="font-semibold">
+                          {((c as any).total_amount > 0
+                            ? Number((c as any).total_amount)
+                            : c.monthly_rent * 12
+                          ).toLocaleString('ar-AE')} د.إ
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {PAYMENT_CYCLE_LABELS[(c as any).payment_cycle ?? 'monthly'] ?? 'شهري'}
+                        <div>
+                          {(c as any).payment_amount > 0
+                            ? `${Number((c as any).payment_amount).toLocaleString('ar-AE')} د.إ`
+                            : `${c.monthly_rent.toLocaleString('ar-AE')} د.إ`
+                          }
+                        </div>
+                        <div className="text-xs text-muted-foreground/70">
+                          {paymentMethodLabel(c)}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={c.status} />

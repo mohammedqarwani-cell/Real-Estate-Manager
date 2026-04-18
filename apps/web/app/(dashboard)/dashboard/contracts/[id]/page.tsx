@@ -74,7 +74,11 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               تم الإنشاء في {format(new Date(contract.created_at), 'dd MMMM yyyy', { locale: ar })}
             </p>
           </div>
-          <ContractDetailClient contractId={id} contractStatus={contract.status} />
+          <ContractDetailClient
+            contractId={id}
+            contractStatus={contract.status}
+            contract={contract}
+          />
         </div>
       </div>
 
@@ -215,21 +219,30 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             التفاصيل المالية
           </div>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">الإيجار الشهري</span>
-              <span className="font-bold text-base">{contract.monthly_rent.toLocaleString('ar-AE')} د.إ</span>
-            </div>
+            {contract.total_amount > 0 ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">إجمالي الإيجار السنوي</span>
+                  <span className="font-bold text-base">{Number(contract.total_amount).toLocaleString('ar-AE')} د.إ</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">عدد الدفعات</span>
+                  <span>{contract.payment_count} دفعة</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">قيمة كل دفعة</span>
+                  <span className="font-semibold text-green-600">{Number(contract.payment_amount).toLocaleString('ar-AE')} د.إ</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">الإيجار الشهري</span>
+                <span className="font-bold text-base">{contract.monthly_rent.toLocaleString('ar-AE')} د.إ</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-muted-foreground">مبلغ التأمين</span>
               <span>{(contract.security_deposit ?? 0).toLocaleString('ar-AE')} د.إ</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">دورة الدفع</span>
-              <span>{PAYMENT_CYCLE_LABELS[contract.payment_cycle ?? 'monthly'] ?? 'شهري'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">يوم الدفع</span>
-              <span>اليوم {contract.payment_day ?? 1} من كل شهر</span>
             </div>
           </div>
         </div>
