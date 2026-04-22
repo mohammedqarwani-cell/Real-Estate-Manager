@@ -262,8 +262,8 @@ export function ContractFormDialog({
 
   const tenantOptions = tenants.map((t) => ({
     value: t.id,
-    label: t.full_name,
-    sub:   t.phone ?? t.email ?? '',
+    label: t.company_name?.trim() ? t.company_name : t.full_name,
+    sub:   t.company_name?.trim() ? t.full_name : (t.phone ?? t.email ?? ''),
   }))
 
   return (
