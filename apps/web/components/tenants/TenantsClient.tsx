@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
-  Plus, Pencil, Trash2, Phone, Mail, CreditCard,
+  Plus, Phone, Mail, CreditCard,
   Users, FileText, ChevronUp, ChevronDown, ArrowUpDown,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import type { Tenant, TenantStatus } from '@repo/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { TenantFormDialog } from './TenantFormDialog'
-import { deleteTenant } from '@/app/(dashboard)/dashboard/tenants/actions'
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -55,39 +54,13 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 
 export function TenantsClient({ tenants }: TenantsClientProps) {
   const router = useRouter()
-  const [dialogOpen, setDialogOpen]       = useState(false)
-  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null)
-  const [statusFilter, setStatusFilter]   = useState<string>('all')
-  const [search, setSearch]               = useState('')
-  const [sortKey, setSortKey]             = useState<SortKey>(null)
-  const [sortDir, setSortDir]             = useState<SortDir>('asc')
-  const [deletingId, setDeletingId]       = useState<string | null>(null)
-  const [isPending, startTransition]      = useTransition()
+  const [dialogOpen, setDialogOpen]     = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [search, setSearch]             = useState('')
+  const [sortKey, setSortKey]           = useState<SortKey>(null)
+  const [sortDir, setSortDir]           = useState<SortDir>('asc')
 
-  function handleAdd() {
-    setEditingTenant(null)
-    setDialogOpen(true)
-  }
-
-  function handleEdit(t: Tenant) {
-    setEditingTenant(t)
-    setDialogOpen(true)
-  }
-
-  function handleDelete(id: string, name: string) {
-    if (!confirm(`هل أنت متأكد من حذف المستأجر "${name}"؟`)) return
-    setDeletingId(id)
-    startTransition(async () => {
-      const result = await deleteTenant(id)
-      if (result.success) {
-        toast.success('تم حذف المستأجر')
-        router.refresh()
-      } else {
-        toast.error(result.error ?? 'حدث خطأ')
-      }
-      setDeletingId(null)
-    })
-  }
+  function handleAdd() { setDialogOpen(true) }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -112,8 +85,12 @@ export function TenantsClient({ tenants }: TenantsClientProps) {
 
     if (sortKey) {
       data = [...data].sort((a, b) => {
-        const av = sortKey === 'active_contracts' ? a.active_contracts : a.full_name.toLowerCase()
-        const bv = sortKey === 'active_contracts' ? b.active_contracts : b.full_name.toLowerCase()
+        const av = sortKey === 'active_contracts'
+          ? a.active_contracts
+          : (a.company_name || a.full_name).toLowerCase()
+        const bv = sortKey === 'active_contracts'
+          ? b.active_contracts
+          : (b.company_name || b.full_name).toLowerCase()
         if (av < bv) return sortDir === 'asc' ? -1 : 1
         if (av > bv) return sortDir === 'asc' ? 1 : -1
         return 0
@@ -208,20 +185,21 @@ export function TenantsClient({ tenants }: TenantsClientProps) {
                     </button>
                   </th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الحالة</th>
-                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody>
                 {filtered.map((t) => (
                   <tr
                     key={t.id}
-                    className={`group border-b last:border-0 hover:bg-muted/30 transition-colors ${
-                      deletingId === t.id ? 'opacity-40 pointer-events-none' : ''
-                    }`}
+                    className="group border-b last:border-0 hover:bg-muted/30 transition-colors"
                   >
                     <td className="px-4 py-3">
-                      <div className="font-medium">{t.full_name}</div>
-                      {t.company_name && <div className="text-xs text-muted-foreground">{t.company_name}</div>}
+                      <Link href={`/dashboard/tenants/${t.id}`} className="font-medium hover:underline hover:text-primary transition-colors">
+                        {t.company_name || t.full_name}
+                      </Link>
+                      {t.company_name && (
+                        <div className="text-xs text-muted-foreground">{t.full_name}</div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {t.phone ? (
@@ -258,21 +236,6 @@ export function TenantsClient({ tenants }: TenantsClientProps) {
                     <td className="px-4 py-3">
                       <StatusBadge status={t.status} />
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleEdit(t)} title="تعديل">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost" size="sm" className="h-8 w-8 p-0 hover:text-destructive"
-                          onClick={() => handleDelete(t.id, t.full_name)}
-                          disabled={isPending}
-                          title="حذف"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -283,12 +246,8 @@ export function TenantsClient({ tenants }: TenantsClientProps) {
 
       <TenantFormDialog
         open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open)
-          if (!open) setEditingTenant(null)
-        }}
-        onSuccess={() => router.refresh()}
-        tenant={editingTenant}
+        onOpenChange={setDialogOpen}
+        onSuccess={() => { setDialogOpen(false); router.refresh() }}
       />
     </div>
   )

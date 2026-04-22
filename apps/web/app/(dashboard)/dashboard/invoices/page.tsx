@@ -6,7 +6,12 @@ import { FinancialOverview, type MonthlyRevenue, type TopDebtor } from '@/compon
 
 export const metadata = { title: 'الفواتير' }
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ search?: string }>
+}) {
+  const sp = await searchParams
   const supabase = await createServerClient()
   const now = new Date()
 
@@ -145,6 +150,7 @@ export default async function InvoicesPage() {
         tenants={tenants}
         contracts={contracts}
         properties={properties}
+        defaultSearch={sp?.search}
       />
     </div>
   )

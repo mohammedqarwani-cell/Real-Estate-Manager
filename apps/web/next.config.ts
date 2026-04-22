@@ -3,6 +3,11 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   transpilePackages: ['@repo/ui', '@repo/types'],
   serverExternalPackages: ['@react-pdf/renderer', 'canvas'],
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {

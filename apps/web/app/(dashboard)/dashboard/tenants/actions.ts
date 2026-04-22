@@ -174,3 +174,67 @@ export async function deleteTenant(
   revalidatePath('/dashboard/tenants')
   return { success: true, error: null }
 }
+
+export async function saveTenantNotes(
+  tenantId: string,
+  notes: string
+): Promise<{ success: boolean; error: string | null }> {
+  const supabase = await createServerClient()
+  const { error } = await (supabase.from('tenants') as any).update({ notes }).eq('id', tenantId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/dashboard/tenants/${tenantId}`)
+  return { success: true, error: null }
+}
+
+export async function uploadTenantDocumentForDetail(
+  tenantId: string,
+  formData: FormData
+): Promise<{ success: boolean; error: string | null; url?: string }> {
+  const file = formData.get('file') as File
+  if (!file || file.size === 0) return { success: false, error: 'لم يتم اختيار ملف' }
+
+  const url = await uploadDocument(file)
+  if (!url) return { success: false, error: 'فشل رفع الملف' }
+
+  const supabase = await createServerClient()
+  const { data: existing } = await (supabase.from('tenants') as any)
+    .select('documents')
+    .eq('id', tenantId)
+    .single()
+
+  const documents = [url, ...(existing?.documents ?? [])]
+  const { error } = await (supabase.from('tenants') as any)
+    .update({ documents })
+    .eq('id', tenantId)
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/dashboard/tenants/${tenantId}`)
+  return { success: true, error: null, url }
+}
+
+export async function deleteTenantDocumentForDetail(
+  tenantId: string,
+  url: string
+): Promise<{ success: boolean; error: string | null }> {
+  const supabase = await createServerClient()
+  const { data: existing } = await (supabase.from('tenants') as any)
+    .select('documents')
+    .eq('id', tenantId)
+    .single()
+
+  const documents = (existing?.documents ?? []).filter((d: string) => d !== url)
+  const { error } = await (supabase.from('tenants') as any)
+    .update({ documents })
+    .eq('id', tenantId)
+
+  if (error) return { success: false, error: error.message }
+
+  try {
+    const storageClient = getStorageClient()
+    const path = url.split('/property-images/')[1]
+    if (path) await storageClient.storage.from('property-images').remove([path])
+  } catch { /* ignore storage errors */ }
+
+  revalidatePath(`/dashboard/tenants/${tenantId}`)
+  return { success: true, error: null }
+}

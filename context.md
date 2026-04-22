@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-22 — نظام الدفع المرن + إصلاحات UI  
+**آخر تحديث:** 2026-04-22 — صفحة تفاصيل المستأجر + تحسينات UX  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -246,7 +246,8 @@ const supabase = createClient(
 | `/dashboard/properties` | إدارة العقارات | Grid + فلترة النوع + بحث + إضافة/تعديل/حذف |
 | `/dashboard/properties/[id]` | تفاصيل العقار | بيانات العقار + قائمة الوحدات + 4 إحصائيات إشغال |
 | `/dashboard/properties/[id]/units` | إدارة وحدات العقار | TanStack Table + فلترة + إضافة/تعديل + تفاصيل + Donut chart |
-| `/dashboard/tenants` | إدارة المستأجرين | جدول المستأجرين |
+| `/dashboard/tenants` | إدارة المستأجرين | جدول المستأجرين — اسم المستأجر رابط للتفاصيل |
+| `/dashboard/tenants/[id]` | تفاصيل المستأجر | tenant + contracts (with unit+property) + آخر 5 invoices — 3 استعلامات متوازية |
 | `/dashboard/contracts` | إدارة العقود | جدول العقود |
 | `/dashboard/invoices` | الفواتير والمدفوعات | FinancialOverview + Bar chart + جدول فواتير كامل |
 | `/dashboard/maintenance` | طلبات الصيانة | MaintenanceStats + MaintenanceClient (جدول + Kanban) |
@@ -1280,3 +1281,100 @@ const tenantOptions = tenants.map((t) => ({
     // ❌ لا total_amount هنا
   })
   ```
+
+---
+
+## 26. صفحة تفاصيل المستأجر (مكتملة — 2026-04-22)
+
+### الملفات المُنشأة أو المُعدَّلة
+
+| الملف | الحالة | الوصف |
+|---|---|---|
+| `apps/web/app/(dashboard)/dashboard/tenants/[id]/page.tsx` | جديد | Server Component — 3 استعلامات متوازية (tenant + contracts + invoices) |
+| `apps/web/components/tenants/TenantDetailClient.tsx` | جديد | Client Component — 5 أقسام كاملة |
+| `apps/web/app/(dashboard)/dashboard/tenants/actions.ts` | معدَّل | أُضيفت 3 server actions جديدة |
+| `apps/web/components/tenants/TenantsClient.tsx` | معدَّل | اسم المستأجر أصبح Link للتفاصيل |
+| `apps/web/components/invoices/InvoicesClient.tsx` | معدَّل | prop `defaultSearch` لتهيئة فلتر البحث |
+| `apps/web/app/(dashboard)/dashboard/invoices/page.tsx` | معدَّل | يقرأ `searchParams.search` ويمرره لـ InvoicesClient |
+
+### بنية صفحة التفاصيل `/dashboard/tenants/[id]`
+
+```
+Breadcrumb: المستأجرون ← اسم المستأجر
+Header: اسم + حالة + زر "تعديل البيانات" (يفتح TenantFormDialog)
+زر رجوع: router.back() — يحافظ على الفلترة السابقة
+
+القسم 1 — المعلومات الشخصية:
+  - الاسم الكامل، رقم الهوية، رقم الموبايل (tel:), الإيميل (mailto:), العنوان
+
+القسم 2 — العقود:
+  - جدول: الوحدة + اسم العقار، البداية، النهاية، الإيجار، الحالة
+  - الضغط على أي صف → /dashboard/contracts/[id]
+
+القسم 3 — الفواتير (آخر 5):
+  - رقم الفاتورة، النوع، المبلغ، تاريخ الاستحقاق، الحالة
+  - رابط "عرض كل الفواتير ←" → /dashboard/invoices?search={full_name}
+  - InvoicesClient يقرأ ?search= ويهيئ فلتر البحث تلقائياً
+
+القسم 4 — المستندات:
+  - رفع: PDF/JPG/PNG عبر file input مخفي → uploadTenantDocumentForDetail()
+  - عرض: اسم الملف + نوعه (badge ملوّن) + تاريخ الرفع (من timestamp الـ filename)
+  - تحميل: رابط target="_blank"
+  - حذف: deleteTenantDocumentForDetail() — يحذف من DB + Supabase Storage
+  - الـ state محلي (optimistic) + router.refresh() بعد كل عملية
+
+القسم 5 — الملاحظات:
+  - Textarea مع auto-save بعد 800ms (debounce بـ setTimeout)
+  - مؤشر "جاري الحفظ..." / "تم الحفظ" يظهر أثناء الحفظ وبعده
+```
+
+### Server Actions المضافة (tenants/actions.ts)
+
+```ts
+saveTenantNotes(tenantId, notes)            // حفظ الملاحظات
+uploadTenantDocumentForDetail(tenantId, fd) // رفع ملف + تحديث documents[]
+deleteTenantDocumentForDetail(tenantId, url) // حذف من DB + Storage
+```
+
+### 8.23 TenantsClient — الاسم كـ Link وليس الصف كاملاً
+
+- استخدام `<Link href="/dashboard/tenants/{id}">` على عنصر الاسم فقط (ليس الـ `<tr>`).
+- هذا أفضل UX من جعل الصف كاملاً قابلاً للضغط الذي يتعارض مع أزرار التعديل/الحذف.
+- لا حاجة لـ `e.stopPropagation()` على أزرار الـ actions.
+- أزرار التعديل والحذف أُزيلا من الجدول — موجودان فقط في صفحة التفاصيل.
+
+### 8.24 InvoicesClient — defaultSearch prop
+
+- prop اختياري `defaultSearch?: string` يهيئ `useState(defaultSearch ?? '')`.
+- InvoicesPage يقرأ `searchParams.search` ويمرره — يُتيح الفلترة بالاسم عبر URL.
+- الرابط من صفحة تفاصيل المستأجر: `/dashboard/invoices?search=${encodeURIComponent(tenant.full_name)}`
+
+### 8.25 حذف المستأجر — Dialog بتأكيد كتابة الاسم
+
+- ملف: `components/tenants/DeleteTenantDialog.tsx`
+- زر الحذف موجود **فقط في صفحة التفاصيل** (`TenantDetailClient`) — لا يظهر في الجدول.
+- الحذف يمر بـ 3 خطوات: فتح Dialog ← قراءة التحذير ← كتابة اسم المستأجر حرفياً.
+- زر "حذف نهائياً" `disabled` ما لم يتطابق النص بالضبط مع `tenant.full_name`.
+- بعد الحذف: `router.push('/dashboard/tenants')` للعودة للقائمة.
+
+### 8.26 Server Actions — حجم الملفات
+
+- Next.js يحدّ Server Actions بـ 1MB افتراضياً.
+- تم رفع الحد إلى **10MB** في `next.config.ts`:
+  ```ts
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb',
+    },
+  },
+  ```
+
+### 8.27 اسم الشركة كحقل أساسي في المستأجرين
+
+- `company_name` أصبح الحقل الأساسي في كل واجهات المستأجرين.
+- المنطق الموحّد: `company_name || full_name` في كل مكان.
+- **TenantFormDialog**: `company_name` أول حقل، label = "اسم الشركة / المستأجر *"، `full_name` label = "الاسم الكامل للممثل *".
+- **TenantsClient**: `company_name` بخط عريض، `full_name` أسفله بخط صغير.
+- **الفرز**: يرتّب بـ `company_name || full_name`.
+- **TenantDetailClient**: العنوان `h1` هو `company_name`، `full_name` كـ subtitle.
+- **Breadcrumb + generateMetadata**: يستخدم `company_name || full_name`.

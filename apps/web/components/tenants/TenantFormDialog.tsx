@@ -130,10 +130,17 @@ export function TenantFormDialog({ open, onOpenChange, onSuccess, tenant }: Tena
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* الاسم الكامل */}
+          {/* اسم الشركة — الحقل الأساسي */}
           <div className="space-y-1.5">
-            <Label htmlFor="full_name">الاسم الكامل *</Label>
-            <Input id="full_name" {...register('full_name')} placeholder="اسم المستأجر" />
+            <Label htmlFor="company_name">اسم الشركة / المستأجر *</Label>
+            <Input id="company_name" {...register('company_name')} placeholder="شركة / مؤسسة / فرد" />
+            {errors.company_name && <p className="text-xs text-destructive">{errors.company_name.message}</p>}
+          </div>
+
+          {/* الاسم الكامل للممثل */}
+          <div className="space-y-1.5">
+            <Label htmlFor="full_name">الاسم الكامل للممثل *</Label>
+            <Input id="full_name" {...register('full_name')} placeholder="اسم الشخص المسؤول" />
             {errors.full_name && <p className="text-xs text-destructive">{errors.full_name.message}</p>}
           </div>
 
@@ -156,13 +163,9 @@ export function TenantFormDialog({ open, onOpenChange, onSuccess, tenant }: Tena
             {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
           </div>
 
-          {/* الشركة + الحالة */}
+          {/* الحالة */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="company_name">الشركة</Label>
-              <Input id="company_name" {...register('company_name')} placeholder="اسم الشركة (اختياري)" />
-            </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 col-start-2">
               <Label>الحالة</Label>
               <Select
                 value={statusValue}

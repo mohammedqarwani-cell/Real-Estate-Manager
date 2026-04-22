@@ -58,6 +58,7 @@ interface InvoicesClientProps {
   tenants: Pick<Tenant, 'id' | 'full_name'>[]
   contracts: ContractWithUnit[]
   properties: Pick<Property, 'id' | 'name'>[]
+  defaultSearch?: string
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ function StatusBadge({ status }: { status: InvoiceStatus }) {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export function InvoicesClient({ invoices, tenants, contracts, properties }: InvoicesClientProps) {
+export function InvoicesClient({ invoices, tenants, contracts, properties, defaultSearch }: InvoicesClientProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -102,7 +103,7 @@ export function InvoicesClient({ invoices, tenants, contracts, properties }: Inv
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceForPayment | null>(null)
   const [paymentOpen, setPaymentOpen]   = useState(false)
 
-  const [search, setSearch]             = useState('')
+  const [search, setSearch]             = useState(defaultSearch ?? '')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [propertyFilter, setPropertyFilter] = useState<string>('all')
 
