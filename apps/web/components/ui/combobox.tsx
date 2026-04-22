@@ -102,9 +102,9 @@ export function Combobox({
                   <Check
                     className={cn('h-4 w-4 shrink-0', o.value === value ? 'opacity-100' : 'opacity-0')}
                   />
-                  <div className="min-w-0 text-right">
-                    <div className="truncate">{o.label}</div>
-                    {o.sub && <div className="text-xs text-muted-foreground truncate">{o.sub}</div>}
+                  <div className="min-w-0 flex-1 text-right">
+                    <div className="break-words">{o.label}</div>
+                    {o.sub && <div className="text-xs text-muted-foreground break-words">{o.sub}</div>}
                   </div>
                 </button>
               ))
