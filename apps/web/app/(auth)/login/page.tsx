@@ -2,12 +2,14 @@
 
 import { useActionState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Building2, Loader2, Mail, Lock } from 'lucide-react'
 import { loginAction } from './actions'
 
 export default function LoginPage() {
   const searchParams = useSearchParams()
   const redirectTo = searchParams.get('redirectTo') ?? '/dashboard'
+  const message    = searchParams.get('message')
 
   const [state, formAction, isPending] = useActionState(loginAction, null)
 
@@ -25,6 +27,13 @@ export default function LoginPage() {
             سجّل دخولك للوصول إلى لوحة التحكم
           </p>
         </div>
+
+        {/* Success message (e.g. after accepting invite) */}
+        {message === 'account_created' && (
+          <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700 text-center">
+            تم إنشاء حسابك بنجاح! سجّل دخولك للمتابعة.
+          </div>
+        )}
 
         {/* Error message */}
         {state?.error && (
@@ -88,6 +97,13 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        <p className="text-center text-sm text-muted-foreground">
+          ليس لديك حساب؟{' '}
+          <Link href="/register" className="text-primary font-medium hover:underline">
+            إنشاء حساب جديد
+          </Link>
+        </p>
       </div>
     </div>
   )

@@ -2,7 +2,12 @@
 // DATABASE ENUMS
 // ============================================================
 
-export type UserRole = 'admin' | 'manager' | 'accountant' | 'maintenance'
+export type UserRole = 'admin' | 'manager' | 'accountant' | 'maintenance' | 'receptionist'
+
+export type EmployeeStatus = 'active' | 'inactive'
+
+export type SubscriptionPlan   = 'free' | 'pro' | 'enterprise'
+export type SubscriptionStatus = 'active' | 'trialing' | 'past_due' | 'canceled'
 
 export type PropertyType = 'residential' | 'commercial' | 'business_center' | 'mixed'
 export type PropertyStatus = 'active' | 'inactive' | 'under_maintenance'
@@ -39,12 +44,29 @@ export type NotificationEntityType = 'invoice' | 'contract' | 'maintenance' | 'b
 // DATABASE MODELS (mirrors Supabase tables)
 // ============================================================
 
+export interface Company {
+  id: string
+  name: string
+  slug: string
+  logo_url: string | null
+  owner_id: string | null
+  subscription_plan: SubscriptionPlan
+  subscription_status: SubscriptionStatus
+  trial_ends_at: string | null
+  max_properties: number | null
+  max_units: number | null
+  max_users: number | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Profile {
   id: string
   full_name: string | null
   phone: string | null
   avatar_url: string | null
   role: UserRole
+  company_id: string | null
   created_at: string
   updated_at: string
 }
@@ -189,6 +211,34 @@ export interface Booking {
   notes: string | null
   created_at: string
   updated_at: string
+}
+
+export interface Employee {
+  id: string
+  company_id: string
+  user_id: string | null
+  name: string
+  email: string
+  phone: string | null
+  role: UserRole
+  status: EmployeeStatus
+  invited_by: string | null
+  joined_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface EmployeeInvitation {
+  id: string
+  company_id: string
+  employee_id: string
+  email: string
+  role: UserRole
+  token: string
+  invited_by: string | null
+  expires_at: string
+  accepted_at: string | null
+  created_at: string
 }
 
 export interface Notification {
@@ -376,6 +426,16 @@ export interface Database {
         Row: Notification
         Insert: Omit<Notification, 'id' | 'created_at'>
         Update: Partial<Pick<Notification, 'read'>>
+      }
+      employees: {
+        Row: Employee
+        Insert: Omit<Employee, 'id' | 'created_at' | 'updated_at'>
+        Update: Partial<Omit<Employee, 'id' | 'created_at'>>
+      }
+      employee_invitations: {
+        Row: EmployeeInvitation
+        Insert: Omit<EmployeeInvitation, 'id' | 'created_at' | 'token'>
+        Update: Partial<Pick<EmployeeInvitation, 'accepted_at'>>
       }
     }
   }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
+import { getUserCompanyId } from '@/lib/supabase/company'
 
 // ─── Schemas ────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ export async function createBooking(
 
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const company_id = await getUserCompanyId()
 
   const q = supabase.from('bookings') as any
   const { error } = await q.insert({
@@ -80,6 +82,7 @@ export async function createBooking(
     amount:          parsed.data.amount,
     status:          'confirmed',
     notes:           parsed.data.notes ?? null,
+    company_id,
   })
 
   if (error) {
@@ -134,6 +137,7 @@ export async function createMeetingRoom(
   }
 
   const supabase = await createServerClient()
+  const company_id = await getUserCompanyId()
   const q = supabase.from('meeting_rooms') as any
   const { error } = await q.insert({
     property_id:   parsed.data.property_id,
@@ -146,6 +150,7 @@ export async function createMeetingRoom(
     status:        parsed.data.status,
     amenities:     [],
     images:        [],
+    company_id,
   })
 
   if (error) return { success: false, error: error.message, fieldErrors: {} }

@@ -3,7 +3,7 @@ import { addDays } from 'date-fns'
 import { createServerClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Header } from '@/components/layout/Header'
-import type { UserRole } from '@repo/types'
+import type { UserRole, SubscriptionPlan } from '@repo/types'
 
 export default async function DashboardLayout({
   children,
@@ -19,7 +19,12 @@ export default async function DashboardLayout({
 
   const threshold = addDays(new Date(), 30).toISOString().split('T')[0]
 
-  const [{ data: profile }, { count: expiringCount }, { count: overdueInvoicesCount }, { count: openMaintenanceCount }] = await Promise.all([
+  const [
+    { data: profile },
+    { count: expiringCount },
+    { count: overdueInvoicesCount },
+    { count: openMaintenanceCount },
+  ] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('contracts')
@@ -38,6 +43,21 @@ export default async function DashboardLayout({
 
   const role = (profile?.role ?? null) as UserRole | null
 
+  // Fetch company info for sidebar branding and subscription
+  let companyName: string | null = null
+  let subscriptionPlan: SubscriptionPlan = 'free'
+
+  if ((profile as any)?.company_id) {
+    const { data: company } = await supabase
+      .from('companies')
+      .select('name, subscription_plan')
+      .eq('id', (profile as any).company_id)
+      .single()
+
+    companyName = company?.name ?? null
+    subscriptionPlan = (company?.subscription_plan as SubscriptionPlan) ?? 'free'
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-muted/10">
       <Sidebar
@@ -45,6 +65,8 @@ export default async function DashboardLayout({
         expiringContractsCount={expiringCount ?? 0}
         overdueInvoicesCount={overdueInvoicesCount ?? 0}
         openMaintenanceCount={openMaintenanceCount ?? 0}
+        companyName={companyName}
+        subscriptionPlan={subscriptionPlan}
       />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header user={profile} userId={user.id} />

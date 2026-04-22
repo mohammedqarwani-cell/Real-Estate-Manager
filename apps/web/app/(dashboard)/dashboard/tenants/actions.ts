@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@/lib/supabase/server'
+import { getUserCompanyId } from '@/lib/supabase/company'
 
 function getStorageClient() {
   return createClient(
@@ -75,6 +76,7 @@ export async function createTenant(
   }
 
   const supabase = await createServerClient()
+  const company_id = await getUserCompanyId()
   const q = supabase.from('tenants') as any
   const { error } = await q.insert({
     full_name: parsed.data.full_name,
@@ -86,6 +88,7 @@ export async function createTenant(
     notes: parsed.data.notes ?? null,
     status: parsed.data.status,
     documents,
+    company_id,
   })
 
   if (error) {

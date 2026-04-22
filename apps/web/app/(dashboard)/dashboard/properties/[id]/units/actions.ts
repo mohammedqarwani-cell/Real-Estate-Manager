@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@/lib/supabase/server'
+import { getUserCompanyId } from '@/lib/supabase/company'
 import type { UnitStatus } from '@repo/types'
 
 function getStorageClient() {
@@ -93,6 +94,7 @@ export async function createUnit(
   }
 
   const supabase = await createServerClient()
+  const company_id = await getUserCompanyId()
 
   const { error } = await supabase.from('units').insert({
     property_id: propertyId,
@@ -107,6 +109,7 @@ export async function createUnit(
     images,
     amenities: [],
     status: 'available',
+    company_id,
   } as any)
 
   if (error) {

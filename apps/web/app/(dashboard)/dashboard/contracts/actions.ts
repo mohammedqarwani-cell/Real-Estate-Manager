@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createServerClient } from '@/lib/supabase/server'
+import { getUserCompanyId } from '@/lib/supabase/company'
 
 const scheduleItemSchema = z.object({
   due_date: z.string(),
@@ -69,6 +70,7 @@ export async function createContract(
   }
 
   const supabase = await createServerClient()
+  const company_id = await getUserCompanyId()
 
   // Check unit availability
   const { data: unit } = await (supabase.from('units') as any)
@@ -99,10 +101,11 @@ export async function createContract(
     total_amount:     parsed.data.total_amount,
     payment_count:    parsed.data.payment_count,
     payment_amount:   parsed.data.payment_amount,
-    payment_cycle:    'monthly',  // kept for backward compat
-    payment_day:      1,          // kept for backward compat
+    payment_cycle:    'monthly',
+    payment_day:      1,
     terms:            parsed.data.terms ?? null,
     status:           'active',
+    company_id,
   }).select('id').single()
 
   if (contractError) {
@@ -127,11 +130,12 @@ export async function createContract(
       tenant_id:    parsed.data.tenant_id,
       unit_id:      parsed.data.unit_id,
       type:         'rent',
-      amount:     item.amount,
-      tax_amount: 0,
-      due_date:   item.due_date,
+      amount:       item.amount,
+      tax_amount:   0,
+      due_date:     item.due_date,
       status:       'pending',
       notes:        `دفعة ${i + 1} من ${schedule.length}`,
+      company_id,
     }))
 
     const { error: invoicesError } = await (supabase.from('invoices') as any)

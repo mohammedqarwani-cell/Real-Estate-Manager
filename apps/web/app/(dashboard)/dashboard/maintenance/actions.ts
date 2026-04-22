@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@/lib/supabase/server'
+import { getUserCompanyId } from '@/lib/supabase/company'
 
 // ─── Schemas ────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ export async function createMaintenanceRequest(
   }
 
   const supabase = await createServerClient()
+  const company_id = await getUserCompanyId()
   const q = supabase.from('maintenance_requests') as any
   const { error } = await q.insert({
     unit_id:     parsed.data.unit_id,
@@ -90,6 +92,7 @@ export async function createMaintenanceRequest(
     priority:    parsed.data.priority,
     status:      'open',
     images:      imageUrls,
+    company_id,
   })
 
   if (error) {

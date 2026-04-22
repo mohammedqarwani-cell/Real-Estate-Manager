@@ -1,13 +1,13 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-14 — إضافة نظام الإشعارات المتكامل (Realtime + Email + WhatsApp)  
+**آخر تحديث:** 2026-04-19 — إدارة الموظفين + دور receptionist + usePermissions hook  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
 
 ## 1. نظرة عامة
 
-نظام إدارة عقارات متكامل (Monorepo) يشمل تطبيق ويب وتطبيق جوال. يُستخدم لإدارة العقارات والوحدات والمستأجرين والعقود والفواتير وطلبات الصيانة وحجوزات قاعات الاجتماعات.
+نظام إدارة عقارات SaaS Multi-tenant (Monorepo) يشمل تطبيق ويب وتطبيق جوال. يُستخدم لإدارة العقارات والوحدات والمستأجرين والعقود والفواتير وطلبات الصيانة وحجوزات قاعات الاجتماعات. كل شركة (tenant) معزولة بياناتها تماماً عبر `company_id` + RLS.
 
 ---
 
@@ -945,13 +945,246 @@ fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/send-booking-confirm
 
 ---
 
+## 21. SaaS Multi-tenant (مكتمل — 2026-04-18)
+
+### Migration المطبَّق
+
+| الملف | المحتوى |
+|---|---|
+| `011_saas_multitenancy.sql` | جدول `companies` + `company_id` لجميع الجداول + `get_user_company_id()` + إعادة كتابة كاملة لـ RLS + تحديث `generate_monthly_invoices` |
+
+### جدول companies
+
+```sql
+companies(
+  id                  uuid PK,
+  name                text,
+  slug                text UNIQUE,
+  logo_url            text nullable,
+  owner_id            uuid FK → auth.users,
+  subscription_plan   text  -- 'free' | 'pro' | 'enterprise'
+  subscription_status text  -- 'active' | 'trialing' | 'past_due' | 'canceled'
+  trial_ends_at       timestamptz nullable,
+  max_properties      int nullable,  -- NULL = unlimited
+  max_units           int nullable,
+  max_users           int nullable,
+  created_at          timestamptz,
+  updated_at          timestamptz
+)
+```
+
+### الملفات المُنشأة
+
+| الملف | الوصف |
+|---|---|
+| `supabase/migrations/011_saas_multitenancy.sql` | Migration كامل |
+| `apps/web/lib/supabase/company.ts` | `getUserCompanyId()` helper للـ Server Actions |
+| `apps/web/app/(onboarding)/layout.tsx` | Layout بسيط لصفحة الـ Onboarding |
+| `apps/web/app/(onboarding)/onboarding/page.tsx` | يقرأ `?plan` من searchParams ويمرره للـ Form |
+| `apps/web/app/(onboarding)/onboarding/actions.ts` | `createCompany`: adminClient + upsert + verify قبل redirect |
+| `apps/web/components/onboarding/CompanySetupForm.tsx` | يقبل `initialPlan` prop — يستخدم `useActionState` مباشرة (بدون startTransition) |
+| `apps/web/app/(dashboard)/dashboard/settings/subscription/page.tsx` | صفحة الاشتراكات: plan + usage bars + مقارنة الباقات |
+| `apps/web/app/page.tsx` | Landing Page: Navbar + Hero + Features (6) + Pricing (free/pro) + Footer |
+| `apps/web/app/(auth)/register/page.tsx` | صفحة التسجيل — تقرأ `?plan` وتعرضه + شاشة "تحقق من بريدك" |
+| `apps/web/app/(auth)/register/actions.ts` | `registerAction`: signUp → يفحص `data.session` → redirect أو emailConfirmationRequired |
+
+### الملفات المُعدَّلة
+
+| الملف | التغيير |
+|---|---|
+| `packages/types/src/index.ts` | إضافة `Company`, `SubscriptionPlan`, `SubscriptionStatus` + `company_id` في `Profile` |
+| `apps/web/middleware.ts` | أضاف `/` لـ PUBLIC_ROUTES (exact match) + `/register` + يوجّه لـ `/onboarding` إذا لا يوجد `company_id` |
+| `apps/web/app/(auth)/login/page.tsx` | أضاف رابط "إنشاء حساب جديد" → `/register` |
+| `apps/web/app/(dashboard)/layout.tsx` | يجلب `companyName` و`subscriptionPlan` ويمررهما للـ Sidebar |
+| `apps/web/components/layout/Sidebar.tsx` | يعرض اسم الشركة + badge الباقة + رابط "الاشتراك" |
+| `apps/web/app/(dashboard)/dashboard/properties/actions.ts` | `createProperty` يضيف `company_id` |
+| `apps/web/app/(dashboard)/dashboard/properties/[id]/units/actions.ts` | `createUnit` يضيف `company_id` |
+| `apps/web/app/(dashboard)/dashboard/tenants/actions.ts` | `createTenant` يضيف `company_id` |
+| `apps/web/app/(dashboard)/dashboard/contracts/actions.ts` | `createContract` + invoices يضيفان `company_id` |
+| `apps/web/app/(dashboard)/dashboard/maintenance/actions.ts` | `createMaintenanceRequest` يضيف `company_id` |
+| `apps/web/app/(dashboard)/dashboard/bookings/actions.ts` | `createBooking` + `createMeetingRoom` يضيفان `company_id` |
+
+### نظام الباقات
+
+| الباقة | العقارات | الوحدات | المستخدمون | السعر |
+|---|---|---|---|---|
+| `free` | 3 | 20 | 2 | مجاناً |
+| `pro` | غير محدود | غير محدود | غير محدود | 99 د.إ/شهر |
+| `enterprise` | غير محدود | غير محدود | غير محدود | تفاوض |
+
+### نمط RLS الجديد
+
+كل policy على كل جدول تشترط:
+1. `company_id = get_user_company_id()` — عزل الشركة
+2. `is_admin_or_manager()` أو الدالة الخاصة بالجدول (can_access_invoices, can_access_maintenance)
+
+### تدفق التسجيل الكامل (مُحدَّث)
+
+```
+/ (Landing Page) → /register?plan=pro → (signup) → /onboarding?plan=pro → /dashboard
+```
+
+1. الزائر يختار باقة من Landing Page → `/register?plan=pro`
+2. يُدخل الاسم + الإيميل + كلمة المرور → `registerAction` يستدعي `supabase.auth.signUp()`
+3. إذا لم تكن هناك session (email confirmation مُفعَّل) → تُعرض شاشة "تحقق من بريدك"
+4. إذا كانت هناك session → `redirect('/onboarding?plan=pro')`
+5. صفحة `/onboarding` تقرأ `plan` من searchParams وتُحدد الباقة مسبقاً
+6. `createCompany` يستخدم `adminClient` (service role) لـ:
+   - فحص تفرّد الـ slug (يقرأ كل الشركات)
+   - إنشاء الشركة بـ UUID مُولَّد مسبقاً (تجنب SELECT-after-INSERT RLS issue)
+   - upsert الـ profile (يضمن وجود الـ row حتى لو trigger لم يُنشئه)
+   - التحقق من نجاح الربط قبل الـ redirect
+7. `redirect('/dashboard')`
+
+### البيانات الموجودة
+
+البيانات الموجودة تم نقلها إلى شركة افتراضية:
+- `id = '00000000-0000-0000-0000-000000000001'`
+- `name = 'الشركة الافتراضية'`
+- `subscription_plan = 'pro'` (مع `max_properties = NULL`)
+
+---
+
+## 22. القرارات التقنية — Landing Page & Registration (2026-04-19)
+
+### 8.23 isPublicRoute — exact match لـ `/`
+- `PUBLIC_ROUTES.some(route => pathname.startsWith(route))` يُطابق كل المسارات إذا كان `/` في القائمة.
+- الحل: `route === '/' ? pathname === '/' : pathname.startsWith(route)`.
+
+### 8.24 redirect() + useActionState — لا تستخدم startTransition
+- `startTransition(() => formAction(formData))` يمنع `redirect()` من العمل داخل Server Actions.
+- الحل: استخدام `const [state, formAction, isPending] = useActionState(...)` مباشرةً + `<form action={formAction}>`.
+- النمط الصحيح: نفس ما يستخدمه login page.
+
+### 8.25 createCompany — SELECT-after-INSERT RLS issue
+- بعد INSERT في `companies`، الكود كان يعمل `.select('id')` لكن policy تقول `id = get_user_company_id()` وهي NULL للمستخدم الجديد → data = null رغم نجاح الـ INSERT.
+- الحل: توليد UUID مسبقاً بـ `crypto.randomUUID()` وعدم الاعتماد على SELECT.
+
+### 8.26 createCompany — استخدام adminClient (service role)
+- جميع عمليات `createCompany` (slug check, company insert, profile upsert, verify) تعمل عبر `adminClient` من `@supabase/supabase-js` مع `SUPABASE_SERVICE_ROLE_KEY`.
+- السبب: تجاوز RLS بأمان داخل Server Action موثوق.
+
+### 8.27 profile upsert بدل update في Onboarding
+- إذا لم يُنشئ trigger `on_auth_user_created` الـ profile (فشل صامت أو تأخر)، فإن `update` يُكمل بدون خطأ لكن بدون تأثير (0 rows).
+- الحل: `upsert` مع `onConflict: 'id'` + SELECT للتحقق بعد الـ upsert قبل الـ redirect.
+
+### 8.28 Email Confirmation في Supabase
+- `signUp()` قد لا يُنشئ session فورية إذا كان "Confirm email" مُفعَّلاً.
+- الكشف: فحص `data.session` بعد `signUp()` — إذا null → `emailConfirmationRequired: true`.
+- للـ development: تعطيل من Supabase Dashboard → Authentication → Providers → Email → Confirm email: OFF.
+
+---
+
 ## 20. ما لم يُنجز بعد
 
 - [ ] صفحة `access_denied` مخصصة بدلاً من redirect صامت
-- [ ] تحسين الأداء: تخزين الدور في JWT custom claims
+- [ ] تخزين `company_id` و`role` في JWT custom claims لتفادي query إضافية في الـ middleware
+- [ ] تفعيل Stripe أو نظام دفع لترقية الباقات
 - [ ] تطبيق الجوال (هيكل فارغ حتى الآن)
 - [ ] إعداد Supabase Edge Functions أو pg_cron لـ `mark_overdue_invoices()` تلقائياً كل يوم
 - [ ] إعداد Supabase Edge Functions أو pg_cron لـ `generate_monthly_invoices()` تلقائياً أول كل شهر
-- [ ] تطبيق Migration 007 في Supabase Dashboard (maintenance RLS + Realtime)
-- [ ] تطبيق Migration 008 في Supabase Dashboard (bookings/tenants/contracts RLS fix)
+- [ ] تطبيق Migration 012 في Supabase Dashboard (employees + receptionist role)
+- [ ] تكامل usePermissions() مع باقي مكونات الـ dashboard لإخفاء الأزرار
 - [ ] اختبارات (لا توجد بعد)
+
+---
+
+## 23. إدارة الموظفين + دور receptionist (مكتمل — 2026-04-19)
+
+### Migration المطبَّق
+
+| الملف | المحتوى |
+|---|---|
+| `012_employees_and_receptionist.sql` | إضافة `receptionist` للـ constraint + `can_access_bookings()` + جدول `employees` + جدول `employee_invitations` + تحديث `tenants_select` + تحديث `bookings_update` |
+
+### الملفات المُنشأة
+
+| الملف | الوصف |
+|---|---|
+| `supabase/migrations/012_employees_and_receptionist.sql` | Migration كامل |
+| `apps/web/hooks/usePermissions.ts` | Hook: `canView()`, `canEdit()`, `canDelete()` بناءً على الدور |
+| `apps/web/app/(dashboard)/dashboard/employees/page.tsx` | Server Component — يجلب الموظفين للشركة |
+| `apps/web/app/(dashboard)/dashboard/employees/actions.ts` | `inviteEmployee`, `updateEmployeeRole`, `toggleEmployeeStatus` |
+| `apps/web/components/employees/EmployeesClient.tsx` | جدول الموظفين + تعديل الدور inline + toggle الحالة |
+| `apps/web/components/employees/InviteEmployeeDialog.tsx` | Dialog دعوة موظف: اسم + إيميل + هاتف + دور |
+| `apps/web/app/(auth)/accept-invite/page.tsx` | Server Component: يتحقق من token + يعرض النموذج |
+| `apps/web/app/(auth)/accept-invite/AcceptInviteForm.tsx` | Client Component: نموذج إنشاء الحساب |
+| `apps/web/app/(auth)/accept-invite/actions.ts` | `getInvitationByToken`, `acceptInviteAction` |
+
+### الملفات المُعدَّلة
+
+| الملف | التغيير |
+|---|---|
+| `packages/types/src/index.ts` | إضافة `receptionist` لـ UserRole + `Employee` + `EmployeeInvitation` interfaces |
+| `apps/web/hooks/useAuth.ts` | إضافة `companyId` للـ state المُرجَع |
+| `apps/web/components/layout/Sidebar.tsx` | إضافة receptionist لـ business-center + إضافة "الموظفون" (admin فقط) |
+| `apps/web/middleware.ts` | إضافة `/accept-invite` لـ PUBLIC_ROUTES + `/dashboard/employees` + receptionist للـ business-center/bookings |
+| `apps/web/app/(auth)/login/page.tsx` | رسالة نجاح عند القدوم من accept-invite |
+
+### جداول قاعدة البيانات الجديدة
+
+```sql
+employees(
+  id uuid PK, company_id uuid FK, user_id uuid nullable FK → auth.users,
+  name text, email text, phone text nullable, role text, status text,
+  invited_by uuid nullable, joined_at timestamptz nullable,
+  created_at timestamptz, updated_at timestamptz
+)
+
+employee_invitations(
+  id uuid PK, company_id uuid FK, employee_id uuid FK,
+  email text, role text, token text UNIQUE,
+  invited_by uuid nullable, expires_at timestamptz,
+  accepted_at timestamptz nullable, created_at timestamptz
+)
+```
+
+### دوال DB المُنشأة
+
+| الدالة | الوظيفة |
+|---|---|
+| `can_access_bookings()` | Boolean: admin أو manager أو receptionist |
+
+### تدفق الدعوة
+
+```
+admin → /dashboard/employees → "دعوة موظف" → inviteEmployee()
+→ employee_invitations record + employees record (user_id=null)
+→ email عبر Resend إلى المدعو (رابط /accept-invite?token=...)
+→ المدعو يملأ: اسم + كلمة مرور → acceptInviteAction()
+→ createUser (Supabase Auth) + upsert profile (company_id + role)
+→ employee.user_id يُحدَّث + invitation.accepted_at
+→ redirect /login?message=account_created
+```
+
+### دور receptionist
+
+| المورد | يرى | يعدّل | يحذف |
+|---|---|---|---|
+| الحجوزات (business-center) | ✓ | ✓ | ✗ |
+| بيانات المستأجرين (للحجز) | ✓ | ✗ | ✗ |
+| البيانات المالية | ✗ | ✗ | ✗ |
+| الصيانة / العقارات / العقود | ✗ | ✗ | ✗ |
+
+### usePermissions() hook
+
+```ts
+const { canView, canEdit, canDelete } = usePermissions()
+
+// مثال:
+if (canDelete('properties')) { /* عرض زر الحذف */ }
+```
+
+Resources: `'properties' | 'tenants' | 'contracts' | 'invoices' | 'maintenance' | 'bookings' | 'employees' | 'reports'`
+
+### 8.29 employees + invitations — استخدام adminClient
+
+- `inviteEmployee` يستخدم `adminClient` (service role) لـ: فحص البريد المكرر، إنشاء employee record، إنشاء invitation record.
+- `acceptInviteAction` يستخدم `adminClient` لـ: إنشاء Supabase user (`auth.admin.createUser`)، upsert profile، ربط employee بالـ user_id.
+- باقي operations (updateEmployeeRole, toggleEmployeeStatus) تستخدم SSR client العادي لأن RLS يسمح للـ admin.
+
+### 8.30 RESEND_API_KEY — استخدام مباشر في Server Action
+
+- إيميل الدعوة يُرسَل عبر `fetch('https://api.resend.com/emails', ...)` مباشرةً دون مكتبة.
+- `NEXT_PUBLIC_APP_URL` مُستخدم لبناء رابط الدعوة.
+- فشل الإيميل لا يوقف العملية — الـ employee record والـ invitation ينشآن بغض النظر.

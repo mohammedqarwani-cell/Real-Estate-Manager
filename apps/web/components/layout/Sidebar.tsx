@@ -13,10 +13,12 @@ import {
   BarChart2,
   Settings,
   LogOut,
+  Zap,
+  UserCheck,
 } from 'lucide-react'
 import { cn } from '@repo/ui'
 import { useAuth } from '@/hooks/useAuth'
-import type { UserRole } from '@repo/types'
+import type { UserRole, SubscriptionPlan } from '@repo/types'
 
 interface NavItem {
   href: string
@@ -30,7 +32,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/dashboard',
     label: 'لوحة التحكم',
     icon: LayoutDashboard,
-    roles: ['admin', 'manager', 'accountant', 'maintenance'],
+    roles: ['admin', 'manager', 'accountant', 'maintenance', 'receptionist'],
   },
   {
     href: '/dashboard/properties',
@@ -66,13 +68,19 @@ const NAV_ITEMS: NavItem[] = [
     href: '/dashboard/business-center',
     label: 'البزنس سنتر',
     icon: CalendarCheck,
-    roles: ['admin', 'manager'],
+    roles: ['admin', 'manager', 'receptionist'],
   },
   {
     href: '/dashboard/reports',
     label: 'التقارير',
     icon: BarChart2,
     roles: ['admin', 'manager', 'accountant'],
+  },
+  {
+    href: '/dashboard/employees',
+    label: 'الموظفون',
+    icon: UserCheck,
+    roles: ['admin'],
   },
 ]
 
@@ -81,9 +89,18 @@ interface SidebarProps {
   expiringContractsCount?: number
   overdueInvoicesCount?: number
   openMaintenanceCount?: number
+  companyName?: string | null
+  subscriptionPlan?: SubscriptionPlan
 }
 
-export function Sidebar({ role, expiringContractsCount = 0, overdueInvoicesCount = 0, openMaintenanceCount = 0 }: SidebarProps) {
+export function Sidebar({
+  role,
+  expiringContractsCount = 0,
+  overdueInvoicesCount = 0,
+  openMaintenanceCount = 0,
+  companyName,
+  subscriptionPlan = 'free',
+}: SidebarProps) {
   const pathname = usePathname()
   const { signOut } = useAuth()
 
@@ -93,12 +110,22 @@ export function Sidebar({ role, expiringContractsCount = 0, overdueInvoicesCount
 
   return (
     <aside className="w-64 bg-sidebar text-sidebar-foreground flex flex-col shrink-0 h-full">
-      {/* Logo */}
-      <div className="px-6 py-5 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <Building2 className="h-6 w-6 text-sidebar-primary" />
-          <span className="font-bold text-base">إدارة العقارات</span>
+      {/* Logo + Company */}
+      <div className="px-5 py-4 border-b border-sidebar-border">
+        <div className="flex items-center gap-2 mb-1">
+          <Building2 className="h-5 w-5 text-sidebar-primary shrink-0" />
+          <span className="font-bold text-sm truncate">
+            {companyName ?? 'إدارة العقارات'}
+          </span>
         </div>
+        {subscriptionPlan !== 'free' ? (
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
+            <Zap className="h-2.5 w-2.5" />
+            {subscriptionPlan === 'pro' ? 'احترافي' : 'مؤسسي'}
+          </span>
+        ) : (
+          <span className="text-[10px] text-muted-foreground/60">الباقة المجانية</span>
+        )}
       </div>
 
       {/* Navigation */}
@@ -147,13 +174,27 @@ export function Sidebar({ role, expiringContractsCount = 0, overdueInvoicesCount
       {/* Footer */}
       <div className="px-3 py-4 border-t border-sidebar-border space-y-1">
         {role === 'admin' && (
-          <Link
-            href="/dashboard/settings"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
-          >
-            <Settings className="h-4 w-4" />
-            الإعدادات
-          </Link>
+          <>
+            <Link
+              href="/dashboard/settings/subscription"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+            >
+              <Zap className="h-4 w-4" />
+              الاشتراك
+              {subscriptionPlan === 'free' && (
+                <span className="mr-auto text-[10px] bg-amber-400/20 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">
+                  ترقية
+                </span>
+              )}
+            </Link>
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+            >
+              <Settings className="h-4 w-4" />
+              الإعدادات
+            </Link>
+          </>
         )}
         <button
           onClick={signOut}

@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@/lib/supabase/server'
+import { getUserCompanyId } from '@/lib/supabase/company'
 
 function getStorageClient() {
   return createClient(
@@ -88,13 +89,15 @@ export async function createProperty(
 
   const supabase = await createServerClient()
   const { data: { user } } = await supabase.auth.getUser()
+  const company_id = await getUserCompanyId()
 
   const { error } = await supabase.from('properties').insert({
     ...parsed.data,
     images,
     amenities: [],
     created_by: user?.id ?? null,
-  })
+    company_id,
+  } as any)
 
   if (error) {
     return { success: false, error: 'حدث خطأ أثناء إضافة العقار', fieldErrors: {} }
