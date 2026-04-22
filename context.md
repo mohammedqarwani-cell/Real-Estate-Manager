@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-19 — إدارة الموظفين + دور receptionist + usePermissions hook  
+**آخر تحديث:** 2026-04-22 — نظام الدفع المرن + إصلاحات UI  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -1188,3 +1188,95 @@ Resources: `'properties' | 'tenants' | 'contracts' | 'invoices' | 'maintenance' 
 - إيميل الدعوة يُرسَل عبر `fetch('https://api.resend.com/emails', ...)` مباشرةً دون مكتبة.
 - `NEXT_PUBLIC_APP_URL` مُستخدم لبناء رابط الدعوة.
 - فشل الإيميل لا يوقف العملية — الـ employee record والـ invitation ينشآن بغض النظر.
+
+---
+
+## 24. نظام الدفع المرن للعقود (مكتمل — 2026-04-22)
+
+### Migrations
+
+| الملف | المحتوى |
+|---|---|
+| `010_fix_generate_monthly_invoices.sql` | إضافة `total_amount`, `payment_count`, `payment_amount` لجدول `contracts` + backfill للعقود القديمة + إعادة كتابة `generate_monthly_invoices()` |
+
+### الأعمدة الجديدة في جدول contracts
+
+| العمود | النوع | الوصف |
+|---|---|---|
+| `total_amount` | numeric(12,2) | إجمالي الإيجار السنوي |
+| `payment_count` | int | عدد الدفعات (1/2/3/4/12 أو مخصص) |
+| `payment_amount` | numeric(12,2) | قيمة كل دفعة = total_amount / payment_count |
+
+الـ backfill للعقود القديمة: `total_amount = monthly_rent * 12`, `payment_count = 12`, `payment_amount = monthly_rent`
+
+### الملفات المُعدَّلة
+
+| الملف | التغيير |
+|---|---|
+| `apps/web/components/contracts/ContractFormDialog.tsx` | إعادة كتابة كاملة بنظام الدفع المرن |
+| `apps/web/app/(dashboard)/dashboard/contracts/actions.ts` | `createContract` ينشئ الفواتير تلقائياً + `terminateContract` يُعيد الوحدة لـ available |
+| `apps/web/components/contracts/ContractsClient.tsx` | يعرض `total_amount` و`payment_amount` وطريقة الدفع بدلاً من `monthly_rent` |
+| `apps/web/app/(dashboard)/dashboard/contracts/[id]/page.tsx` | يعرض الأعمدة الجديدة في بطاقة التفاصيل المالية |
+
+### ContractFormDialog — نظام الدفع المرن
+
+- حقل `total_amount` = إجمالي الإيجار السنوي
+- خيارات الدفع: 1 دفعة / 2 (كل 6 أشهر) / 3 (كل 4 أشهر) / 4 (كل 3 أشهر) / 12 (شهري) / مخصص
+- `payment_amount` = total / count يُحسب تلقائياً
+- جدول دفعات قابل للتعديل: كل صف يحتوي `input[date]` + `input[number]` للتاريخ والمبلغ
+- زر "إعادة ضبط" يُعيد الجدول للتواريخ المحسوبة تلقائياً
+- تحذير إذا مجموع المبالغ المعدّلة ≠ إجمالي العقد
+- عند الحفظ: تُنشأ فاتورة منفصلة لكل دفعة تلقائياً في جدول `invoices`
+
+### اختيار المستأجر باسم الشركة
+
+```tsx
+// ContractFormDialog — يعرض اسم الشركة كعنوان رئيسي إذا توفّر
+const tenantOptions = tenants.map((t) => ({
+  value: t.id,
+  label: t.company_name?.trim() ? t.company_name : t.full_name,
+  sub:   t.company_name?.trim() ? t.full_name : (t.phone ?? t.email ?? ''),
+}))
+```
+
+### generate_monthly_invoices — التحديثات
+
+- يتخطى العقود بـ `payment_count ≠ 12` (لها فواتير مُنشأة مسبقاً عند حفظ العقد)
+- يستخدم `PERFORM ... ; IF FOUND THEN` بدلاً من `SELECT EXISTS INTO v_exists` (كان يُسبب خطأ 42P01)
+- يستخدم `COALESCE(payment_amount, monthly_rent)` للمبلغ عند توليد الفاتورة
+
+---
+
+## 25. إصلاحات UI (2026-04-22)
+
+### 8.31 Combobox — عرض النص كاملاً
+
+- استبدال `truncate` بـ `break-words` في خيارات الـ dropdown
+- الملف: `apps/web/components/ui/combobox.tsx`
+- الزر الرئيسي يحتفظ بـ `truncate` (عرض محدود)، لكن القائمة المنسدلة تعرض النص كاملاً
+
+### 8.32 Dialog — منع الإغلاق بالضغط خارجها
+
+- إضافة `onInteractOutside={(e) => e.preventDefault()}` في `DialogContent` الأساسي
+- الملف: `apps/web/components/ui/dialog.tsx`
+- يشمل جميع dialogs التطبيق — لا تُغلق إلا بزر **X** أو **إلغاء**
+
+### 8.33 إعادة حالة الوحدات بعد TRUNCATE
+
+- `TRUNCATE TABLE contracts CASCADE` لا يُفعّل الـ Trigger لتحديث حالة الوحدات
+- بعد أي TRUNCATE للعقود يجب تشغيل:
+  ```sql
+  UPDATE public.units SET status = 'available' WHERE status = 'occupied';
+  ```
+
+### 8.34 total_amount في invoices — Generated Column
+
+- `total_amount = amount + tax_amount` مُحسوب تلقائياً في DB
+- **لا تُدرج `total_amount` في أي INSERT على جدول invoices** → خطأ 428C9
+- الصحيح:
+  ```ts
+  await (supabase.from('invoices') as any).insert({
+    amount, tax_amount: 0, due_date, status: 'pending',
+    // ❌ لا total_amount هنا
+  })
+  ```
