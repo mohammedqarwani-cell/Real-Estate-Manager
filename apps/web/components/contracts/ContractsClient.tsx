@@ -56,7 +56,7 @@ function StatusBadge({ status }: { status: ContractStatus }) {
 type UnitWithProperty = Unit & { property: Pick<Property, 'id' | 'name'> }
 
 export type ContractWithRelations = Contract & {
-  tenant: Pick<Tenant, 'id' | 'full_name' | 'phone'> | null
+  tenant: Pick<Tenant, 'id' | 'full_name' | 'company_name' | 'phone'> | null
   unit: UnitWithProperty | null
 }
 
@@ -175,7 +175,7 @@ export function ContractsClient({
             <SelectContent>
               <SelectItem value="all">كل المستأجرين</SelectItem>
               {tenants.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
+                <SelectItem key={t.id} value={t.id}>{t.company_name || t.full_name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -219,9 +219,9 @@ export function ContractsClient({
                   return (
                     <tr key={c.id} className="group border-b last:border-0 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3 font-medium">
-                        {c.tenant?.full_name ?? '—'}
-                        {c.tenant?.phone && (
-                          <div className="text-xs text-muted-foreground">{c.tenant.phone}</div>
+                        {c.tenant ? (c.tenant.company_name || c.tenant.full_name) : '—'}
+                        {c.tenant?.company_name && (
+                          <div className="text-xs text-muted-foreground">{c.tenant.full_name}</div>
                         )}
                       </td>
                       <td className="px-4 py-3">

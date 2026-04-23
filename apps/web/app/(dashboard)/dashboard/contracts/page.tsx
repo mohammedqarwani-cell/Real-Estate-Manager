@@ -11,7 +11,7 @@ export default async function ContractsPage() {
     await Promise.all([
       supabase
         .from('contracts')
-        .select(`*, tenant:tenants(id, full_name, phone), unit:units(id, unit_number, property:properties(id, name))`)
+        .select(`*, tenant:tenants(id, full_name, company_name, phone), unit:units(id, unit_number, property:properties(id, name))`)
         .order('created_at', { ascending: false }),
       (supabase.from('units') as any)
         .select('id, unit_number, monthly_rent, status, property:properties(id, name)')

@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-22 — صفحة تفاصيل المستأجر + تحسينات UX  
+**آخر تحديث:** 2026-04-23 — إصلاح عرض المستأجر في صفحة العقود  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -1368,6 +1368,16 @@ deleteTenantDocumentForDetail(tenantId, url) // حذف من DB + Storage
     },
   },
   ```
+
+### 8.28 إصلاح عرض المستأجر في صفحة العقود (2026-04-23)
+
+- **المشكلة:** جدول العقود كان يعرض `full_name` أساسياً و`phone` ثانوياً.
+- **الإصلاح:**
+  - `contracts/page.tsx`: أُضيف `company_name` لحقول الـ tenant في الـ select query.
+  - `ContractsClient.tsx` — النوع: `Pick<Tenant, 'id' | 'full_name' | 'company_name' | 'phone'>`.
+  - `ContractsClient.tsx` — الجدول: `company_name || full_name` بخط عريض، `full_name` أسفله إن وُجدت شركة.
+  - `ContractsClient.tsx` — فلتر المستأجرين: يعرض `company_name || full_name` في القائمة المنسدلة.
+- نفس المنطق الموحّد: `company_name || full_name` في كل واجهات المستأجرين.
 
 ### 8.27 اسم الشركة كحقل أساسي في المستأجرين
 
