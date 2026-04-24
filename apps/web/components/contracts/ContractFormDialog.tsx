@@ -46,6 +46,7 @@ const PAYMENT_COUNT_OPTIONS = [
 const formSchema = z.object({
   unit_id:            z.string().min(1, 'يرجى اختيار الوحدة'),
   tenant_id:          z.string().min(1, 'يرجى اختيار المستأجر'),
+  contract_type:      z.enum(['full_time', 'part_time']),
   start_date:         z.string().min(1, 'تاريخ البداية مطلوب'),
   end_date:           z.string().min(1, 'تاريخ النهاية مطلوب'),
   total_amount:       z.string().min(1, 'إجمالي الإيجار السنوي مطلوب'),
@@ -134,6 +135,7 @@ export function ContractFormDialog({
     defaultValues: {
       unit_id:           '',
       tenant_id:         '',
+      contract_type:     'full_time' as const,
       start_date:        '',
       end_date:          '',
       total_amount:      '',
@@ -149,6 +151,7 @@ export function ContractFormDialog({
       reset({
         unit_id:           '',
         tenant_id:         '',
+        contract_type:     'full_time',
         start_date:        '',
         end_date:          '',
         total_amount:      '',
@@ -225,6 +228,7 @@ export function ContractFormDialog({
     const formData = new FormData()
     formData.append('unit_id',          values.unit_id)
     formData.append('tenant_id',        values.tenant_id)
+    formData.append('contract_type',    values.contract_type)
     formData.append('start_date',       values.start_date)
     formData.append('end_date',         values.end_date)
     formData.append('total_amount',     totalAmount.toString())
@@ -301,6 +305,23 @@ export function ContractFormDialog({
               />
               {errors.tenant_id && <p className="text-xs text-destructive">{errors.tenant_id.message}</p>}
             </div>
+          </div>
+
+          {/* نوع العقد */}
+          <div className="space-y-1.5">
+            <Label>نوع العقد *</Label>
+            <Select
+              value={watch('contract_type')}
+              onValueChange={(v) => setValue('contract_type', v as 'full_time' | 'part_time', { shouldValidate: true })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="اختر نوع العقد" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full_time">🔵 دوام كامل</SelectItem>
+                <SelectItem value="part_time">🟡 دوام جزئي</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* تواريخ */}

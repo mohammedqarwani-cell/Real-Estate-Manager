@@ -13,6 +13,7 @@ const scheduleItemSchema = z.object({
 const contractSchema = z.object({
   unit_id:        z.string().uuid('يرجى اختيار وحدة'),
   tenant_id:      z.string().uuid('يرجى اختيار مستأجر'),
+  contract_type:  z.enum(['full_time', 'part_time']).default('full_time'),
   start_date:     z.string().min(1, 'تاريخ البداية مطلوب'),
   end_date:       z.string().min(1, 'تاريخ النهاية مطلوب'),
   total_amount:   z.coerce.number().positive('إجمالي الإيجار يجب أن يكون موجباً'),
@@ -38,6 +39,7 @@ export async function createContract(
   const raw = {
     unit_id:          formData.get('unit_id'),
     tenant_id:        formData.get('tenant_id'),
+    contract_type:    formData.get('contract_type') || 'full_time',
     start_date:       formData.get('start_date'),
     end_date:         formData.get('end_date'),
     total_amount:     formData.get('total_amount'),
@@ -94,6 +96,7 @@ export async function createContract(
   const { data: newContract, error: contractError } = await q.insert({
     unit_id:          parsed.data.unit_id,
     tenant_id:        parsed.data.tenant_id,
+    contract_type:    parsed.data.contract_type,
     start_date:       parsed.data.start_date,
     end_date:         parsed.data.end_date,
     monthly_rent,

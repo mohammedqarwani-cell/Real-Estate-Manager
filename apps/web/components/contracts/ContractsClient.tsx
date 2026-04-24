@@ -76,10 +76,11 @@ export function ContractsClient({
   properties,
 }: ContractsClientProps) {
   const router = useRouter()
-  const [dialogOpen, setDialogOpen]       = useState(false)
-  const [statusFilter, setStatusFilter]   = useState<string>('all')
-  const [propertyFilter, setPropertyFilter] = useState<string>('all')
-  const [tenantFilter, setTenantFilter]   = useState<string>('all')
+  const [dialogOpen, setDialogOpen]           = useState(false)
+  const [statusFilter, setStatusFilter]       = useState<string>('all')
+  const [propertyFilter, setPropertyFilter]   = useState<string>('all')
+  const [tenantFilter, setTenantFilter]       = useState<string>('all')
+  const [contractTypeFilter, setContractTypeFilter] = useState<string>('all')
 
   const filtered = useMemo(() => {
     let data = contracts
@@ -87,8 +88,10 @@ export function ContractsClient({
     if (propertyFilter !== 'all')
       data = data.filter((c) => (c.unit as any)?.property?.id === propertyFilter)
     if (tenantFilter !== 'all') data = data.filter((c) => c.tenant_id === tenantFilter)
+    if (contractTypeFilter !== 'all')
+      data = data.filter((c) => (c as any).contract_type === contractTypeFilter)
     return data
-  }, [contracts, statusFilter, propertyFilter, tenantFilter])
+  }, [contracts, statusFilter, propertyFilter, tenantFilter, contractTypeFilter])
 
   const expiringCount = useMemo(
     () =>
@@ -180,6 +183,27 @@ export function ContractsClient({
             </SelectContent>
           </Select>
         )}
+
+        {/* Contract type filter */}
+        <div className="flex gap-2">
+          {([
+            { value: 'all',       label: 'الكل' },
+            { value: 'full_time', label: '🔵 دوام كامل' },
+            { value: 'part_time', label: '🟡 دوام جزئي' },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setContractTypeFilter(opt.value)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                contractTypeFilter === opt.value
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'border-border hover:bg-muted'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -208,6 +232,7 @@ export function ContractsClient({
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">تاريخ النهاية</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الإيجار السنوي</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الدفعة</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">النوع</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الحالة</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -260,6 +285,17 @@ export function ContractsClient({
                         <div className="text-xs text-muted-foreground/70">
                           {paymentMethodLabel(c)}
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {(c as any).contract_type === 'part_time' ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+                            🟡 دوام جزئي
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            🔵 دوام كامل
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={c.status} />

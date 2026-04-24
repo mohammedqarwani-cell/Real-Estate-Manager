@@ -16,6 +16,7 @@ export type UnitType = 'apartment' | 'office' | 'retail' | 'studio' | 'villa' | 
 export type UnitStatus = 'available' | 'occupied' | 'maintenance' | 'reserved'
 
 export type ContractStatus = 'draft' | 'active' | 'expired' | 'terminated' | 'renewed'
+export type ContractType = 'full_time' | 'part_time'
 export type PaymentCycle = 'monthly' | 'quarterly' | 'annually'
 
 export type InvoiceType = 'rent' | 'maintenance' | 'utility' | 'deposit' | 'other'
@@ -133,6 +134,7 @@ export interface Contract {
   payment_day: number
   status: ContractStatus
   payment_cycle: PaymentCycle | undefined
+  contract_type: ContractType
   terms: string | null
   document_url: string | null
   created_by: string | null

@@ -22,7 +22,10 @@ const STATUS_CONFIG: Record<TenantStatus, { label: string; className: string; do
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export type TenantWithContractCount = Tenant & { active_contracts: number }
+export type TenantWithContractCount = Tenant & {
+  active_contracts: number
+  active_contract_type: string | null
+}
 
 interface TenantsClientProps {
   tenants: TenantWithContractCount[]
@@ -54,11 +57,12 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 
 export function TenantsClient({ tenants }: TenantsClientProps) {
   const router = useRouter()
-  const [dialogOpen, setDialogOpen]     = useState(false)
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [search, setSearch]             = useState('')
-  const [sortKey, setSortKey]           = useState<SortKey>(null)
-  const [sortDir, setSortDir]           = useState<SortDir>('asc')
+  const [dialogOpen, setDialogOpen]           = useState(false)
+  const [statusFilter, setStatusFilter]       = useState<string>('all')
+  const [contractTypeFilter, setContractTypeFilter] = useState<string>('all')
+  const [search, setSearch]                   = useState('')
+  const [sortKey, setSortKey]                 = useState<SortKey>(null)
+  const [sortDir, setSortDir]                 = useState<SortDir>('asc')
 
   function handleAdd() { setDialogOpen(true) }
 
@@ -70,6 +74,9 @@ export function TenantsClient({ tenants }: TenantsClientProps) {
   const filtered = useMemo(() => {
     let data: TenantWithContractCount[] =
       statusFilter === 'all' ? tenants : tenants.filter((t) => t.status === statusFilter)
+
+    if (contractTypeFilter !== 'all')
+      data = data.filter((t) => t.active_contract_type === contractTypeFilter)
 
     if (search.trim()) {
       const q = search.trim().toLowerCase()
@@ -84,7 +91,7 @@ export function TenantsClient({ tenants }: TenantsClientProps) {
     }
 
     if (sortKey) {
-      data = [...data].sort((a, b) => {
+      data = [...data].sort((a: TenantWithContractCount, b: TenantWithContractCount) => {
         const av = sortKey === 'active_contracts'
           ? a.active_contracts
           : (a.company_name || a.full_name).toLowerCase()
@@ -146,6 +153,27 @@ export function TenantsClient({ tenants }: TenantsClientProps) {
               </button>
             )
           })}
+        </div>
+
+        {/* Contract type filter */}
+        <div className="flex gap-2">
+          {([
+            { value: 'all',       label: 'الكل' },
+            { value: 'full_time', label: '🔵 دوام كامل' },
+            { value: 'part_time', label: '🟡 دوام جزئي' },
+          ] as const).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setContractTypeFilter(opt.value)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                contractTypeFilter === opt.value
+                  ? 'bg-foreground text-background border-foreground'
+                  : 'border-border hover:bg-muted'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 

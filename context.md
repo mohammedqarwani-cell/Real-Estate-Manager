@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-24 — إعادة تهيئة كاملة لنظام الفواتير (دعم كل دورات الدفع)  
+**آخر تحديث:** 2026-04-24 — إضافة نوع العقد (دوام كامل / دوام جزئي) مع فلترة  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -156,7 +156,8 @@ real-estate-manager/
 │   │   ├── 009_..._010_...
 │   │   ├── 011_add_company_id_to_invoices.sql
 │   │   ├── 012_fix_generate_monthly_invoices_v3.sql
-│   │   └── 013_generate_contract_invoices.sql  # NEW: full schedule for any cycle
+│   │   ├── 013_generate_contract_invoices.sql  # full schedule for any cycle
+│   │   └── 014_add_contract_type.sql           # NEW: contract_type (full_time | part_time)
 │   └── seed.sql
 │
 ├── turbo.json
@@ -176,7 +177,7 @@ real-estate-manager/
 | `tenants` | المستأجرون | `full_name, email, phone, national_id, company_name, status` |
 | `properties` | العقارات | `name, type, address, total_units, amenities, images, status` |
 | `units` | وحدات داخل العقارات | `property_id, unit_number, type, area, monthly_rent, status, images` |
-| `contracts` | عقود الإيجار | `unit_id, tenant_id, start_date, end_date, monthly_rent, security_deposit, payment_day` |
+| `contracts` | عقود الإيجار | `unit_id, tenant_id, start_date, end_date, monthly_rent, security_deposit, payment_day, contract_type` |
 | `invoices` | الفواتير | `invoice_number, type, amount, tax_amount, total_amount, due_date, paid_date, status, payment_method, reference_number` |
 | `maintenance_requests` | طلبات الصيانة | `unit_id, tenant_id, title, category, priority, status, assigned_to` |
 | `meeting_rooms` | قاعات الاجتماعات | `property_id, name, capacity, hourly_rate, half_day_rate, full_day_rate` |
@@ -389,6 +390,13 @@ const supabase = createClient(
   ```ts
   if (err.message?.includes('overlap')) return { ..., error: 'هذا الوقت محجوز بالفعل لهذه القاعة' }
   ```
+
+### 8.22 نوع العقد (contract_type) — Migration 014
+- عمود `contract_type TEXT NOT NULL DEFAULT 'full_time'` مع `CHECK (contract_type IN ('full_time', 'part_time'))`.
+- **نموذج إنشاء العقد** (`ContractFormDialog`): حقل Select بخيارَين (🔵 دوام كامل / 🟡 دوام جزئي) — Zod enum مع default `'full_time'`.
+- **جدول العقود** (`ContractsClient`): عمود "النوع" بـ badge ملوّن + أزرار فلتر (الكل / دوام كامل / دوام جزئي).
+- **صفحة المستأجرين**: فلتر بنوع عقد المستأجر الفعّال — `TenantWithContractCount` يحمل `active_contract_type: string | null` يُجلب من `contracts` query في `tenants/page.tsx`.
+- في `@repo/types`: أضيف `ContractType = 'full_time' | 'part_time'` وحقل `contract_type: ContractType` في interface `Contract`.
 
 ### 8.21 نظام التقارير وتوليد PDF
 - الحزم المُضافة: `@react-pdf/renderer ^3.4.4`, `xlsx ^0.18.5`
