@@ -34,12 +34,12 @@ export default async function InvoicesPage({
     // All invoices with relations
     (supabase.from('invoices') as any).select(`
       *,
-      tenant:tenants(id, full_name, email),
+      tenant:tenants(id, full_name, company_name, email),
       unit:units(id, unit_number, property:properties(id, name))
     `).order('created_at', { ascending: false }),
 
     // Tenants for the create dialog
-    (supabase.from('tenants') as any).select('id, full_name').eq('status', 'active').order('full_name'),
+    (supabase.from('tenants') as any).select('id, full_name, company_name').eq('status', 'active').order('full_name'),
 
     // Active contracts for the create dialog
     (supabase.from('contracts') as any).select(`
@@ -59,7 +59,7 @@ export default async function InvoicesPage({
 
     // Overdue invoices
     (supabase.from('invoices') as any)
-      .select('total_amount, tenant_id, tenant:tenants(id, full_name)')
+      .select('total_amount, tenant_id, tenant:tenants(id, full_name, company_name)')
       .eq('status', 'overdue'),
 
     // Revenue for last 6 months (paid invoices grouped by month)
@@ -83,7 +83,7 @@ export default async function InvoicesPage({
   const collectedThisMonth = ((collectedThisMonthResult.data ?? []) as { total_amount: number }[])
     .reduce((sum, r) => sum + (r.total_amount ?? 0), 0)
 
-  const overdueRows = (overdueResult.data ?? []) as { total_amount: number; tenant_id: string; tenant: { id: string; full_name: string } | null }[]
+  const overdueRows = (overdueResult.data ?? []) as { total_amount: number; tenant_id: string; tenant: { id: string; full_name: string; company_name: string | null } | null }[]
   const totalOverdue = overdueRows.reduce((sum, r) => sum + (r.total_amount ?? 0), 0)
 
   // ── Top debtors ────────────────────────────────────────────────────────
@@ -93,7 +93,7 @@ export default async function InvoicesPage({
     if (!debtorMap.has(tid)) {
       debtorMap.set(tid, {
         tenant_id: tid,
-        tenant_name: row.tenant?.full_name ?? '—',
+        tenant_name: (row.tenant?.company_name || row.tenant?.full_name) ?? '—',
         overdue_amount: 0,
         overdue_count: 0,
       })

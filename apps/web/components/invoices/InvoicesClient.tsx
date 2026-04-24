@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { format, isPast, parseISO } from 'date-fns'
+import { format, isPast, parseISO, isThisMonth, isFuture } from 'date-fns'
 import { ar } from 'date-fns/locale'
 import {
   Plus,
@@ -16,6 +16,7 @@ import {
   Ban,
   CreditCard,
   Printer,
+  CalendarDays,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -29,7 +30,7 @@ import {
 } from '@/components/ui/select'
 import { InvoiceFormDialog } from './InvoiceFormDialog'
 import { PaymentDialog, type InvoiceForPayment } from './PaymentDialog'
-import { generateMonthlyInvoices, cancelInvoice } from '@/app/(dashboard)/dashboard/invoices/actions'
+import { generateAllSchedules, cancelInvoice } from '@/app/(dashboard)/dashboard/invoices/actions'
 import type { InvoiceStatus, Tenant, Contract, Unit, Property } from '@repo/types'
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -49,13 +50,13 @@ export type InvoiceRow = {
   status: InvoiceStatus
   payment_method: string | null
   notes: string | null
-  tenant: Pick<Tenant, 'id' | 'full_name' | 'email'> | null
+  tenant: Pick<Tenant, 'id' | 'full_name' | 'email'> & { company_name?: string | null } | null
   unit: (Pick<Unit, 'id' | 'unit_number'> & { property?: Pick<Property, 'id' | 'name'> }) | null
 }
 
 interface InvoicesClientProps {
   invoices: InvoiceRow[]
-  tenants: Pick<Tenant, 'id' | 'full_name'>[]
+  tenants: (Pick<Tenant, 'id' | 'full_name'> & { company_name?: string | null })[]
   contracts: ContractWithUnit[]
   properties: Pick<Property, 'id' | 'name'>[]
   defaultSearch?: string
@@ -64,12 +65,12 @@ interface InvoicesClientProps {
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<InvoiceStatus, { label: string; className: string; icon: React.ElementType; dotClass: string }> = {
-  draft:    { label: 'مسودة',          className: 'bg-gray-100   text-gray-600',    icon: Clock,        dotClass: 'bg-gray-400'   },
-  pending:  { label: 'معلقة',           className: 'bg-yellow-100 text-yellow-700',  icon: Clock,        dotClass: 'bg-yellow-500' },
-  paid:     { label: 'مدفوعة',         className: 'bg-green-100  text-green-700',   icon: CheckCircle2, dotClass: 'bg-green-500'  },
-  overdue:  { label: 'متأخرة',         className: 'bg-red-100    text-red-700',     icon: AlertTriangle,dotClass: 'bg-red-500'    },
-  partial:  { label: 'مدفوعة جزئياً', className: 'bg-orange-100 text-orange-700',  icon: CreditCard,   dotClass: 'bg-orange-500' },
-  cancelled:{ label: 'ملغاة',          className: 'bg-gray-100   text-gray-500',    icon: Ban,          dotClass: 'bg-gray-300'   },
+  draft:    { label: 'مسودة',          className: 'bg-gray-100   text-gray-600',    icon: Clock,         dotClass: 'bg-gray-400'   },
+  pending:  { label: 'معلقة',           className: 'bg-yellow-100 text-yellow-700',  icon: Clock,         dotClass: 'bg-yellow-500' },
+  paid:     { label: 'مدفوعة',         className: 'bg-green-100  text-green-700',   icon: CheckCircle2,  dotClass: 'bg-green-500'  },
+  overdue:  { label: 'متأخرة',         className: 'bg-red-100    text-red-700',     icon: AlertTriangle, dotClass: 'bg-red-500'    },
+  partial:  { label: 'مدفوعة جزئياً', className: 'bg-orange-100 text-orange-700',  icon: CreditCard,    dotClass: 'bg-orange-500' },
+  cancelled:{ label: 'ملغاة',          className: 'bg-gray-100   text-gray-500',    icon: Ban,           dotClass: 'bg-gray-300'   },
 }
 
 const INVOICE_TYPE_LABELS: Record<string, string> = {
@@ -78,6 +79,18 @@ const INVOICE_TYPE_LABELS: Record<string, string> = {
   utility:     'خدمات',
   deposit:     'تأمين',
   other:       'أخرى',
+}
+
+// ─── Period filter keys ──────────────────────────────────────────────────────
+
+type PeriodFilter = 'all' | 'this_month' | 'overdue' | 'upcoming'
+
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function tenantDisplay(t: InvoiceRow['tenant']): { primary: string; secondary?: string } {
+  if (!t) return { primary: '—' }
+  if (t.company_name) return { primary: t.company_name, secondary: t.full_name }
+  return { primary: t.full_name }
 }
 
 // ─── Status Badge ──────────────────────────────────────────────────────────
@@ -99,31 +112,16 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  const [createOpen, setCreateOpen]     = useState(false)
+  const [createOpen, setCreateOpen]         = useState(false)
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceForPayment | null>(null)
-  const [paymentOpen, setPaymentOpen]   = useState(false)
+  const [paymentOpen, setPaymentOpen]       = useState(false)
 
-  const [search, setSearch]             = useState(defaultSearch ?? '')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [search, setSearch]                 = useState(defaultSearch ?? '')
+  const [statusFilter, setStatusFilter]     = useState<string>('all')
+  const [periodFilter, setPeriodFilter]     = useState<PeriodFilter>('all')
   const [propertyFilter, setPropertyFilter] = useState<string>('all')
 
-  // ── Filtering ──────────────────────────────────────────────────────────
-
-  const filtered = useMemo(() => {
-    let data = invoices
-    if (statusFilter !== 'all') data = data.filter((i) => i.status === statusFilter)
-    if (propertyFilter !== 'all')
-      data = data.filter((i) => (i.unit as any)?.property?.id === propertyFilter)
-    if (search.trim()) {
-      const q = search.trim().toLowerCase()
-      data = data.filter((i) =>
-        i.invoice_number.toLowerCase().includes(q) ||
-        i.tenant?.full_name?.toLowerCase().includes(q) ||
-        i.unit?.unit_number?.toLowerCase().includes(q)
-      )
-    }
-    return data
-  }, [invoices, statusFilter, propertyFilter, search])
+  // ── Counts ──────────────────────────────────────────────────────────────
 
   const counts = useMemo(() => ({
     all:       invoices.length,
@@ -134,28 +132,67 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
     cancelled: invoices.filter((i) => i.status === 'cancelled').length,
   }), [invoices])
 
+  // ── Filtering ──────────────────────────────────────────────────────────
+
+  const filtered = useMemo(() => {
+    let data = invoices
+
+    // Period filter
+    if (periodFilter === 'this_month') {
+      data = data.filter((i) => isThisMonth(parseISO(i.due_date)))
+    } else if (periodFilter === 'overdue') {
+      data = data.filter((i) => i.status === 'overdue' || (i.status === 'pending' && isPast(parseISO(i.due_date))))
+    } else if (periodFilter === 'upcoming') {
+      data = data.filter((i) => ['pending', 'partial'].includes(i.status) && isFuture(parseISO(i.due_date)))
+    }
+
+    // Status filter
+    if (statusFilter !== 'all') data = data.filter((i) => i.status === statusFilter)
+
+    // Property filter
+    if (propertyFilter !== 'all')
+      data = data.filter((i) => (i.unit as any)?.property?.id === propertyFilter)
+
+    // Search
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      data = data.filter((i) =>
+        i.invoice_number.toLowerCase().includes(q) ||
+        i.tenant?.full_name?.toLowerCase().includes(q) ||
+        (i.tenant as any)?.company_name?.toLowerCase().includes(q) ||
+        i.unit?.unit_number?.toLowerCase().includes(q)
+      )
+    }
+
+    return data
+  }, [invoices, statusFilter, periodFilter, propertyFilter, search])
+
   // ── Handlers ────────────────────────────────────────────────────────────
 
-  const handleGenerateMonthly = () => {
-    const now = new Date()
+  const handleGenerateAll = () => {
     startTransition(async () => {
-      const result = await generateMonthlyInvoices(now.getFullYear(), now.getMonth() + 1)
+      const result = await generateAllSchedules()
       if (result.success) {
-        toast.success(`تم توليد ${result.created} فاتورة — تخطي ${result.skipped} موجودة`)
+        if (result.created === 0) {
+          toast.info(`جداول الدفعات محدّثة — ${result.skipped} فاتورة موجودة مسبقاً`)
+        } else {
+          toast.success(`✓ تم إنشاء ${result.created} فاتورة — ${result.skipped} موجودة مسبقاً`)
+        }
         router.refresh()
       } else {
-        toast.error('خطأ في توليد الفواتير: ' + result.error)
+        toast.error('خطأ في توليد الجداول: ' + result.error)
       }
     })
   }
 
   const handleOpenPayment = (inv: InvoiceRow) => {
+    const display = tenantDisplay(inv.tenant)
     setPaymentInvoice({
       id: inv.id,
       invoice_number: inv.invoice_number,
       total_amount: inv.total_amount,
       status: inv.status,
-      tenant_name: inv.tenant?.full_name ?? '—',
+      tenant_name: display.primary,
     })
     setPaymentOpen(true)
   }
@@ -164,9 +201,9 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
     try {
       const { generateInvoicePDF } = await import('@/components/pdf/generate')
       const blob = await generateInvoicePDF(inv)
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
       a.download = `${inv.invoice_number}.pdf`
       a.click()
       URL.revokeObjectURL(url)
@@ -189,10 +226,19 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
     })
   }
 
+  // ── Period quick tabs ────────────────────────────────────────────────────
+
+  const periodTabs: { key: PeriodFilter; label: string; icon?: React.ElementType }[] = [
+    { key: 'all',        label: 'الكل' },
+    { key: 'this_month', label: 'هذا الشهر',  icon: CalendarDays },
+    { key: 'overdue',    label: 'متأخرة',      icon: AlertTriangle },
+    { key: 'upcoming',   label: 'قادمة',       icon: Clock },
+  ]
+
   // ── Status filter tabs ───────────────────────────────────────────────────
 
   const statusTabs: { key: string; label: string }[] = [
-    { key: 'all',       label: 'الكل' },
+    { key: 'all',       label: 'كل الحالات' },
     { key: 'pending',   label: 'معلقة' },
     { key: 'overdue',   label: 'متأخرة' },
     { key: 'paid',      label: 'مدفوعة' },
@@ -215,27 +261,51 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
             )}
           </div>
           <p className="text-muted-foreground text-sm mt-1">
-            {invoices.length} فاتورة إجمالاً
+            {invoices.length} فاتورة إجمالاً •{' '}
+            {counts.pending + counts.partial} بانتظار الدفع
           </p>
         </div>
         <div className="flex gap-2 shrink-0 self-start sm:self-auto">
           <Button
             variant="outline"
-            onClick={handleGenerateMonthly}
+            onClick={handleGenerateAll}
             disabled={isPending}
             className="gap-2"
           >
             <RefreshCw className={`h-4 w-4 ${isPending ? 'animate-spin' : ''}`} />
-            توليد فواتير الشهر
+            توليد جداول الدفعات
           </Button>
           <Button onClick={() => setCreateOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" />
-            فاتورة جديدة
+            فاتورة يدوية
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Period Quick Tabs */}
+      <div className="flex flex-wrap gap-2" dir="rtl">
+        {periodTabs.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setPeriodFilter(key)}
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
+              periodFilter === key
+                ? 'bg-foreground text-background border-foreground'
+                : 'border-border hover:bg-muted'
+            }`}
+          >
+            {Icon && <Icon className="h-3.5 w-3.5" />}
+            {label}
+            {key === 'overdue' && counts.overdue > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${periodFilter === key ? 'bg-background/20' : 'bg-red-100 text-red-700'}`}>
+                {counts.overdue}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Filters row */}
       <div className="flex flex-wrap gap-3 items-center" dir="rtl">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-xs">
@@ -248,10 +318,10 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
           />
         </div>
 
-        {/* Status tabs */}
-        <div className="flex flex-wrap gap-2">
+        {/* Status filter */}
+        <div className="flex flex-wrap gap-1.5">
           {statusTabs.map(({ key, label }) => {
-            const count = counts[key as keyof typeof counts] ?? invoices.filter((i) => i.status === key).length
+            const count = counts[key as keyof typeof counts] ?? 0
             return (
               <button
                 key={key}
@@ -266,9 +336,11 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
                   <span className={`h-2 w-2 rounded-full ${STATUS_CONFIG[key as InvoiceStatus]?.dotClass ?? 'bg-gray-300'}`} />
                 )}
                 {label}
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${statusFilter === key ? 'bg-background/20' : 'bg-muted'}`}>
-                  {count}
-                </span>
+                {key !== 'all' && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${statusFilter === key ? 'bg-background/20' : 'bg-muted'}`}>
+                    {count}
+                  </span>
+                )}
               </button>
             )
           })}
@@ -299,10 +371,16 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
               {invoices.length === 0 ? 'لا توجد فواتير بعد' : 'لا توجد نتائج مطابقة'}
             </p>
             {invoices.length === 0 && (
-              <Button onClick={() => setCreateOpen(true)} className="mt-4" variant="outline">
-                <Plus className="h-4 w-4" />
-                إنشاء أول فاتورة
-              </Button>
+              <div className="flex items-center justify-center gap-3 mt-4">
+                <Button onClick={handleGenerateAll} disabled={isPending} variant="outline" className="gap-2">
+                  <RefreshCw className={`h-4 w-4 ${isPending ? 'animate-spin' : ''}`} />
+                  توليد جداول الدفعات
+                </Button>
+                <Button onClick={() => setCreateOpen(true)} variant="outline" className="gap-2">
+                  <Plus className="h-4 w-4" />
+                  فاتورة يدوية
+                </Button>
+              </div>
             )}
           </div>
         ) : (
@@ -311,11 +389,11 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
               <thead>
                 <tr className="border-b bg-muted/40">
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">رقم الفاتورة</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">المستأجر</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">المستأجر / الشركة</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">العقار / الوحدة</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">النوع</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">المبلغ</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الاستحقاق</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">تاريخ الاستحقاق</th>
                   <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الحالة</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -323,19 +401,26 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
               <tbody>
                 {filtered.map((inv) => {
                   const isOverdueDate = inv.status === 'pending' && isPast(parseISO(inv.due_date))
-                  const canPay = ['pending', 'overdue', 'partial'].includes(inv.status)
+                  const canPay    = ['pending', 'overdue', 'partial'].includes(inv.status)
                   const canCancel = ['pending', 'overdue', 'draft'].includes(inv.status)
+                  const display   = tenantDisplay(inv.tenant)
+
                   return (
                     <tr key={inv.id} className="group border-b last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      {/* Invoice number */}
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                         {inv.invoice_number}
                       </td>
-                      <td className="px-4 py-3 font-medium">
-                        {inv.tenant?.full_name ?? '—'}
-                        {inv.tenant?.email && (
-                          <div className="text-xs text-muted-foreground">{inv.tenant.email}</div>
+
+                      {/* Tenant */}
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{display.primary}</div>
+                        {display.secondary && (
+                          <div className="text-xs text-muted-foreground">{display.secondary}</div>
                         )}
                       </td>
+
+                      {/* Unit */}
                       <td className="px-4 py-3">
                         {inv.unit ? (
                           <>
@@ -344,17 +429,23 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
                           </>
                         ) : '—'}
                       </td>
+
+                      {/* Type */}
                       <td className="px-4 py-3 text-muted-foreground">
                         {INVOICE_TYPE_LABELS[inv.type] ?? inv.type}
                       </td>
-                      <td className="px-4 py-3">
+
+                      {/* Amount */}
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span className="font-semibold">
                           {inv.total_amount.toLocaleString('ar-AE')}
                         </span>
                         <span className="text-xs text-muted-foreground mr-1">د.إ</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className={isOverdueDate ? 'text-red-600 font-medium' : 'text-muted-foreground'}>
+
+                      {/* Due date */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className={isOverdueDate || inv.status === 'overdue' ? 'text-red-600 font-medium' : 'text-muted-foreground'}>
                           {format(parseISO(inv.due_date), 'dd MMM yyyy', { locale: ar })}
                         </div>
                         {inv.paid_date && (
@@ -363,15 +454,19 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
                           </div>
                         )}
                       </td>
+
+                      {/* Status */}
                       <td className="px-4 py-3">
                         <StatusBadge status={inv.status} />
                       </td>
+
+                      {/* Actions */}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                           <button
                             onClick={() => handlePrintInvoice(inv)}
                             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
-                            title="طباعة الفاتورة PDF"
+                            title="طباعة PDF"
                           >
                             <Printer className="h-3.5 w-3.5" />
                           </button>
@@ -403,6 +498,19 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
           </div>
         )}
       </div>
+
+      {/* Footer summary */}
+      {filtered.length > 0 && (
+        <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
+          <span>{filtered.length} فاتورة</span>
+          <span className="font-medium">
+            الإجمالي:{' '}
+            <span className="text-foreground">
+              {filtered.reduce((s, i) => s + i.total_amount, 0).toLocaleString('ar-AE')} د.إ
+            </span>
+          </span>
+        </div>
+      )}
 
       {/* Dialogs */}
       <InvoiceFormDialog

@@ -168,6 +168,29 @@ export async function generateMonthlyInvoices(
   return { success: true, created, skipped, error: null }
 }
 
+export async function generateAllSchedules(): Promise<{
+  success: boolean
+  created: number
+  skipped: number
+  error: string | null
+}> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await (supabase.rpc as any)('generate_all_invoices')
+
+  if (error) {
+    return { success: false, created: 0, skipped: 0, error: error.message }
+  }
+
+  const rows = (data as any[]) ?? []
+  const created = rows.filter((r) => !r.skipped).length
+  const skipped = rows.filter((r) => r.skipped).length
+
+  revalidatePath('/dashboard/invoices')
+  revalidatePath('/dashboard')
+  return { success: true, created, skipped, error: null }
+}
+
 export async function cancelInvoice(
   invoiceId: string
 ): Promise<{ success: boolean; error: string | null }> {

@@ -32,7 +32,7 @@ interface InvoiceFormDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
-  tenants: Pick<Tenant, 'id' | 'full_name'>[]
+  tenants: (Pick<Tenant, 'id' | 'full_name'> & { company_name?: string | null })[]
   contracts: ContractWithUnit[]
 }
 
@@ -91,7 +91,7 @@ export function InvoiceFormDialog({
               </SelectTrigger>
               <SelectContent>
                 {tenants.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.full_name}</SelectItem>
+                  <SelectItem key={t.id} value={t.id}>{t.company_name || t.full_name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
