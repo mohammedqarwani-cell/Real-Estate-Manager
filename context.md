@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-23 — إصلاح توليد الفواتير (payment_amount)  
+**آخر تحديث:** 2026-04-24 — إعادة تهيئة كاملة لنظام الفواتير (دعم كل دورات الدفع)  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -105,7 +105,7 @@ real-estate-manager/
 │   │   │   │   ├── UnitDetailDialog.tsx    # بطاقة التفاصيل الكاملة
 │   │   │   │   └── OccupancyWidget.tsx     # Donut chart + إيرادات الشهر
 │   │   │   ├── invoices/
-│   │   │   │   ├── InvoicesClient.tsx      # جدول + بحث + فلترة + توليد شهري + إلغاء
+│   │   │   │   ├── InvoicesClient.tsx      # جدول + period tabs + بحث + فلترة + توليد جداول دفعات
 │   │   │   │   ├── InvoiceFormDialog.tsx   # Dialog إنشاء فاتورة يدوية
 │   │   │   │   ├── PaymentDialog.tsx       # Dialog تسجيل دفعة (مبلغ+طريقة+رقم مرجعي)
 │   │   │   │   └── FinancialOverview.tsx   # 4 KPI cards + Bar chart Recharts + أكثر المتأخرين
@@ -151,7 +151,12 @@ real-estate-manager/
 │   │   ├── 004_fix_rls_auth_users_access.sql
 │   │   ├── 005_invoices_enhancements.sql
 │   │   ├── 006_fix_invoices_select_policy.sql
-│   │   └── 007_maintenance_realtime.sql
+│   │   ├── 007_maintenance_realtime.sql
+│   │   ├── 008_notifications.sql
+│   │   ├── 009_..._010_...
+│   │   ├── 011_add_company_id_to_invoices.sql
+│   │   ├── 012_fix_generate_monthly_invoices_v3.sql
+│   │   └── 013_generate_contract_invoices.sql  # NEW: full schedule for any cycle
 │   └── seed.sql
 │
 ├── turbo.json
@@ -207,7 +212,12 @@ can_access_invoices()                  -- Boolean: admin أو manager أو accou
 get_auth_user_email()                  -- SECURITY DEFINER: يقرأ auth.users بأمان (Migration 004)
 can_access_maintenance()               -- Boolean: admin أو manager أو maintenance (Migration 007)
 mark_overdue_invoices()                -- يُحوّل الفواتير المتأخرة لـ overdue
-generate_monthly_invoices(year, month) -- يُولّد فواتير الإيجار لجميع العقود الفعّالة (Migration 005)
+generate_monthly_invoices(year, month) -- يُولّد فواتير شهرية فقط (Migration 005 — قديم، يُبقى للتوافق)
+generate_contract_invoices(uuid)       -- يُولّد جدول دفعات كامل لعقد واحد (Migration 013)
+                                       --   يدعم: سنوي (1) / نصف سنوي (2) / ربعي (4) / شهري (12)
+                                       --   المبلغ: payment_amount > total_amount/n > monthly_rent*12/n
+                                       --   idempotent: يتخطى الأشهر الموجودة مسبقاً
+generate_all_invoices()                -- يُولّد جداول دفعات لجميع العقود الفعّالة (Migration 013)
 ```
 
 ---
