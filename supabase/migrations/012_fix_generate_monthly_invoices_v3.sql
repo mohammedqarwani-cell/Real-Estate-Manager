@@ -1,6 +1,9 @@
 -- Migration 012: Fix generate_monthly_invoices
 -- Restores payment_amount logic (lost in 011) + keeps company_id (added in 011)
 -- Return type: TABLE (matches frontend expectations in invoices/actions.ts)
+-- Must DROP first because migration 011 changed return type to integer
+
+DROP FUNCTION IF EXISTS public.generate_monthly_invoices(integer, integer);
 
 CREATE OR REPLACE FUNCTION public.generate_monthly_invoices(
   p_year  INTEGER DEFAULT EXTRACT(YEAR  FROM CURRENT_DATE)::INTEGER,
