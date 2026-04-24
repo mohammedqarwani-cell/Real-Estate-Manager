@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-23 — إصلاح عرض المستأجر في صفحة العقود  
+**آخر تحديث:** 2026-04-23 — إصلاح توليد الفواتير (payment_amount)  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -1368,6 +1368,22 @@ deleteTenantDocumentForDetail(tenantId, url) // حذف من DB + Storage
     },
   },
   ```
+
+### 8.29 إصلاح generate_monthly_invoices — payment_amount (2026-04-23)
+
+**المشكلة:** migration 011 أعاد كتابة `generate_monthly_invoices` وكسر شيئين:
+1. استخدم `monthly_rent` بدل `payment_amount` ← الفواتير تصدر بقيمة خاطئة (الإيجار الشهري بدل قيمة الدفعة الفعلية)
+2. غيّر return type إلى `RETURNS integer` بينما الـ frontend يتوقع `RETURNS TABLE`
+
+**الإصلاح — Migration 012:**
+- استعاد منطق `payment_amount > 0 ? payment_amount : monthly_rent`
+- استعاد skip للعقود غير الشهرية (`payment_count ≠ 12`)
+- أعاد return type لـ `TABLE(contract_id, invoice_id, invoice_number, skipped, skip_reason)`
+- أضاف `company_id` في الـ INSERT (من migration 011)
+
+**القاعدة:** بعد أي migration يُعيد كتابة دالة موجودة، تحقق أن:
+- return type لم يتغير
+- جميع الحقول المُضافة في migrations سابقة لا تزال في الـ SELECT والـ INSERT
 
 ### 8.28 إصلاح عرض المستأجر في صفحة العقود (2026-04-23)
 
