@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-29 — تجديد العقود، مسودة العقد، فلاتر متقدمة، تحسينات جدول العقود  
+**آخر تحديث:** 2026-04-29 — تجديد العقود، مسودة العقد، فلاتر متقدمة، تحسينات جدول العقود، تفاصيل وتعديل الفواتير  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -105,8 +105,9 @@ real-estate-manager/
 │   │   │   │   ├── UnitDetailDialog.tsx    # بطاقة التفاصيل الكاملة
 │   │   │   │   └── OccupancyWidget.tsx     # Donut chart + إيرادات الشهر
 │   │   │   ├── invoices/
-│   │   │   │   ├── InvoicesClient.tsx      # جدول + period tabs + بحث + فلترة + توليد جداول دفعات
-│   │   │   │   ├── InvoiceFormDialog.tsx   # Dialog إنشاء فاتورة يدوية
+│   │   │   │   ├── InvoicesClient.tsx      # جدول + period tabs + بحث + فلترة + توليد جداول دفعات + أزرار تفاصيل/تعديل
+│   │   │   │   ├── InvoiceFormDialog.tsx   # Dialog إنشاء + تعديل فاتورة (وضع مزدوج create/edit)
+│   │   │   │   ├── InvoiceDetailDialog.tsx # Dialog عرض تفاصيل الفاتورة الكاملة (قراءة فقط)
 │   │   │   │   ├── PaymentDialog.tsx       # Dialog تسجيل دفعة (مبلغ+طريقة+رقم مرجعي)
 │   │   │   │   └── FinancialOverview.tsx   # 4 KPI cards + Bar chart Recharts + أكثر المتأخرين
 │   │   │   ├── maintenance/
@@ -429,6 +430,28 @@ const supabase = createClient(
 - **Combobox** (`components/ui/combobox.tsx`): نتائج الفلترة مرتّبة أبجدياً — ما يبدأ بالنص أولاً ثم ما يحتويه، `localeCompare('ar')`.
 - **تسمية**: "مُنهى" → **"ملغي"** في جميع الملفات (ContractsClient, [id]/page, TenantDetailClient, UnitDetailDialog).
 - **تسمية**: "إجمالي الإيجار السنوي" → **"إجمالي الإيجار"** (دعم عقود أطول من سنة).
+
+### 8.26 تفاصيل وتعديل الفواتير
+
+#### عرض التفاصيل (InvoiceDetailDialog)
+- **`InvoiceDetailDialog`** (`components/invoices/InvoiceDetailDialog.tsx`): Dialog قراءة فقط يعرض:
+  - رقم الفاتورة + badge الحالة في بطاقة علوية.
+  - بيانات المستأجر (الاسم، المسؤول إن وُجد، البريد).
+  - العقار والوحدة.
+  - التفاصيل المالية (المبلغ، الضريبة، الإجمالي مُميَّز بالأخضر).
+  - التواريخ وطريقة الدفع.
+  - الملاحظات.
+- **زر "تفاصيل"** (أيقونة Eye) يظهر عند hover على كل صف في جدول الفواتير.
+
+#### تعديل الفواتير (Edit Mode في InvoiceFormDialog)
+- **`InvoiceFormDialog`** أصبح يعمل بوضعَين:
+  - **إنشاء** (`invoice` prop = null/undefined): النموذج فارغ + يختار المستأجر والعقد.
+  - **تعديل** (`invoice` prop = InvoiceRow): يُملأ النموذج مسبقاً + يظهر اسم المستأجر كـ read-only.
+- **حقول التعديل**: النوع، المبلغ، الضريبة، تاريخ الاستحقاق، الحالة (select كامل)، الملاحظات.
+- **`updateInvoice` action** (`invoices/actions.ts`): يستقبل `invoiceId` + FormData — يحسب `total_amount = amount + tax_amount` ويُحدّث DB.
+- **تعديل الفواتير المدفوعة/الملغاة**: مسموح دائماً مع ظهور بانر تحذير برتقالي:
+  > ⚠️ هذه الفاتورة **مدفوعة** — أي تعديل سيؤثر على السجلات المالية.
+- **زر "تعديل"** (أيقونة Pencil، أزرق) يظهر عند hover على جميع صفوف الفواتير بدون استثناء.
 
 ### 8.21 نظام التقارير وتوليد PDF
 - الحزم المُضافة: `@react-pdf/renderer ^3.4.4`, `xlsx ^0.18.5`
