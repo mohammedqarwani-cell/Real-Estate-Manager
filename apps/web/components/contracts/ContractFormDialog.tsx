@@ -49,7 +49,7 @@ const formSchema = z.object({
   contract_type:      z.enum(['full_time', 'part_time']),
   start_date:         z.string().min(1, 'تاريخ البداية مطلوب'),
   end_date:           z.string().min(1, 'تاريخ النهاية مطلوب'),
-  total_amount:       z.string().min(1, 'إجمالي الإيجار السنوي مطلوب'),
+  total_amount:       z.string().min(1, 'إجمالي الإيجار مطلوب'),
   security_deposit:   z.string().optional(),
   payment_count_key:  z.string().min(1, 'يرجى اختيار طريقة الدفع'),
   custom_count:       z.string().optional(),
@@ -345,7 +345,7 @@ export function ContractFormDialog({
             {/* الإجمالي السنوي + التأمين */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="total_amount">إجمالي الإيجار السنوي (د.إ) *</Label>
+                <Label htmlFor="total_amount">إجمالي الإيجار (د.إ) *</Label>
                 <Input
                   id="total_amount"
                   type="number"

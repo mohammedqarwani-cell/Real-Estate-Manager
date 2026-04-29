@@ -222,7 +222,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             {contract.total_amount > 0 ? (
               <>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">إجمالي الإيجار السنوي</span>
+                  <span className="text-muted-foreground">إجمالي الإيجار</span>
                   <span className="font-bold text-base">{Number(contract.total_amount).toLocaleString('ar-AE')} د.إ</span>
                 </div>
                 <div className="flex justify-between">
