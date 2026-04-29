@@ -17,6 +17,7 @@ import {
   CreditCard,
   Printer,
   CalendarDays,
+  Eye,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -30,6 +31,7 @@ import {
 } from '@/components/ui/select'
 import { InvoiceFormDialog } from './InvoiceFormDialog'
 import { PaymentDialog, type InvoiceForPayment } from './PaymentDialog'
+import { InvoiceDetailDialog } from './InvoiceDetailDialog'
 import { generateAllSchedules, cancelInvoice } from '@/app/(dashboard)/dashboard/invoices/actions'
 import type { InvoiceStatus, Tenant, Contract, Unit, Property } from '@repo/types'
 
@@ -115,6 +117,8 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
   const [createOpen, setCreateOpen]         = useState(false)
   const [paymentInvoice, setPaymentInvoice] = useState<InvoiceForPayment | null>(null)
   const [paymentOpen, setPaymentOpen]       = useState(false)
+  const [detailInvoice, setDetailInvoice]   = useState<InvoiceRow | null>(null)
+  const [detailOpen, setDetailOpen]         = useState(false)
 
   const [search, setSearch]                 = useState(defaultSearch ?? '')
   const [statusFilter, setStatusFilter]     = useState<string>('all')
@@ -464,6 +468,14 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity justify-end">
                           <button
+                            onClick={() => { setDetailInvoice(inv); setDetailOpen(true) }}
+                            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
+                            title="تفاصيل الفاتورة"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            تفاصيل
+                          </button>
+                          <button
                             onClick={() => handlePrintInvoice(inv)}
                             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
                             title="طباعة PDF"
@@ -526,6 +538,12 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
         onOpenChange={setPaymentOpen}
         onSuccess={() => router.refresh()}
         invoice={paymentInvoice}
+      />
+
+      <InvoiceDetailDialog
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        invoice={detailInvoice}
       />
     </div>
   )
