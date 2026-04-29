@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, XCircle, Printer } from 'lucide-react'
+import { Loader2, XCircle, Printer, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,21 +14,25 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { terminateContract } from '@/app/(dashboard)/dashboard/contracts/actions'
+import { RenewContractDialog, type OldContractData } from './RenewContractDialog'
 import type { ContractStatus } from '@repo/types'
 import type { ContractForPDF } from '@/components/pdf/ContractDocument'
 
 interface ContractDetailClientProps {
-  contractId: string
+  contractId:     string
   contractStatus: ContractStatus
-  contract?: ContractForPDF
+  contract?:      ContractForPDF
+  renewData?:     OldContractData
 }
 
 export function ContractDetailClient({
   contractId,
   contractStatus,
   contract,
+  renewData,
 }: ContractDetailClientProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [renewOpen, setRenewOpen]     = useState(false)
   const [isPending, startTransition]  = useTransition()
   const [pdfLoading, setPdfLoading]   = useState(false)
   const router = useRouter()
@@ -67,57 +71,65 @@ export function ContractDetailClient({
   }
 
   const canTerminate = contractStatus === 'active' || contractStatus === 'draft'
+  const canRenew     = contractStatus === 'active' || contractStatus === 'expired'
 
   return (
     <>
-      <div className="flex items-center gap-2 self-start sm:self-auto">
+      <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
         {contract && (
-          <Button
-            variant="outline"
-            onClick={handlePrintPDF}
-            disabled={pdfLoading}
-            className="gap-2"
-          >
-            {pdfLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Printer className="h-4 w-4" />
-            )}
+          <Button variant="outline" onClick={handlePrintPDF} disabled={pdfLoading} className="gap-2">
+            {pdfLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
             {pdfLoading ? 'جاري التحضير...' : 'طباعة العقد'}
+          </Button>
+        )}
+
+        {canRenew && renewData && (
+          <Button variant="outline" onClick={() => setRenewOpen(true)} className="gap-2 border-green-300 text-green-700 hover:bg-green-50">
+            <RefreshCw className="h-4 w-4" />
+            تجديد العقد
           </Button>
         )}
 
         {canTerminate && (
           <Button variant="destructive" onClick={() => setConfirmOpen(true)}>
             <XCircle className="h-4 w-4" />
-            إنهاء العقد
+            إلغاء العقد
           </Button>
         )}
       </div>
 
+      {/* Dialog تأكيد الإلغاء */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent className="max-w-sm" dir="rtl">
           <DialogHeader>
-            <DialogTitle>تأكيد إنهاء العقد</DialogTitle>
+            <DialogTitle>تأكيد إلغاء العقد</DialogTitle>
             <DialogDescription className="sr-only">
-              تأكيد إنهاء العقد وتحديث حالة الوحدة
+              تأكيد إلغاء العقد وتحديث حالة الوحدة
             </DialogDescription>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            هل أنت متأكد من إنهاء هذا العقد؟ سيتم تحديث حالة الوحدة إلى "متاح" تلقائياً. لا يمكن
-            التراجع عن هذا الإجراء.
+            هل أنت متأكد من إلغاء هذا العقد؟ سيتم تحديث حالة الوحدة إلى "متاح" تلقائياً. لا يمكن التراجع عن هذا الإجراء.
           </p>
           <DialogFooter className="gap-2 mt-4">
             <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={isPending}>
-              إلغاء
+              تراجع
             </Button>
             <Button variant="destructive" onClick={handleTerminate} disabled={isPending}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-              إنهاء العقد
+              إلغاء العقد
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog التجديد */}
+      {renewData && (
+        <RenewContractDialog
+          open={renewOpen}
+          onOpenChange={setRenewOpen}
+          oldContract={renewData}
+        />
+      )}
     </>
   )
 }

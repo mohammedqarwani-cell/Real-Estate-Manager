@@ -78,6 +78,16 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             contractId={id}
             contractStatus={contract.status}
             contract={contract}
+            renewData={{
+              id:               contract.id,
+              end_date:         contract.end_date,
+              total_amount:     Number(contract.total_amount) || contract.monthly_rent * 12,
+              payment_count:    Number(contract.payment_count) || 1,
+              payment_amount:   Number(contract.payment_amount) || 0,
+              security_deposit: Number(contract.security_deposit) || 0,
+              contract_type:    contract.contract_type ?? 'full_time',
+              terms:            contract.terms ?? null,
+            }}
           />
         </div>
       </div>
