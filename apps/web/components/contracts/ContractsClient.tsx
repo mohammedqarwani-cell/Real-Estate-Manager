@@ -223,18 +223,29 @@ export function ContractsClient({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[22%]" />  {/* المستأجر */}
+                <col className="w-[14%]" />  {/* الوحدة */}
+                <col className="w-[10%]" />  {/* تاريخ البداية */}
+                <col className="w-[12%]" />  {/* تاريخ النهاية */}
+                <col className="w-[13%]" />  {/* إجمالي الإيجار */}
+                <col className="w-[12%]" />  {/* الدفعة */}
+                <col className="w-[11%]" />  {/* النوع */}
+                <col className="w-[10%]" />  {/* الحالة */}
+                <col className="w-[6%]"  />  {/* رابط */}
+              </colgroup>
               <thead>
                 <tr className="border-b bg-muted/40">
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">المستأجر</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الوحدة</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">تاريخ البداية</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">تاريخ النهاية</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">إجمالي الإيجار</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الدفعة</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">النوع</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الحالة</th>
-                  <th className="px-4 py-3" />
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">المستأجر</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الوحدة</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">البداية</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">النهاية</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">إجمالي الإيجار</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الدفعة</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">النوع</th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">الحالة</th>
+                  <th className="px-3 py-3" />
                 </tr>
               </thead>
               <tbody>
@@ -243,20 +254,22 @@ export function ContractsClient({
                   const isExpiringSoon = c.status === 'active' && daysLeft >= 0 && daysLeft <= 30
                   return (
                     <tr key={c.id} className="group border-b last:border-0 hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-medium">
-                        {c.tenant ? (c.tenant.company_name || c.tenant.full_name) : '—'}
+                      <td className="px-3 py-3 font-medium truncate max-w-0">
+                        <div className="truncate">
+                          {c.tenant ? (c.tenant.company_name || c.tenant.full_name) : '—'}
+                        </div>
                         {c.tenant?.company_name && (
-                          <div className="text-xs text-muted-foreground">{c.tenant.full_name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{c.tenant.full_name}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium">وحدة {c.unit?.unit_number ?? '—'}</div>
-                        <div className="text-xs text-muted-foreground">{(c.unit as any)?.property?.name ?? ''}</div>
+                      <td className="px-3 py-3 max-w-0">
+                        <div className="font-medium truncate">وحدة {c.unit?.unit_number ?? '—'}</div>
+                        <div className="text-xs text-muted-foreground truncate">{(c.unit as any)?.property?.name ?? ''}</div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-3 py-3 text-muted-foreground whitespace-nowrap text-xs">
                         {format(new Date(c.start_date), 'dd MMM yyyy', { locale: ar })}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3 whitespace-nowrap text-xs">
                         <div className={isExpiringSoon ? 'text-amber-600 font-medium' : 'text-muted-foreground'}>
                           {format(new Date(c.end_date), 'dd MMM yyyy', { locale: ar })}
                         </div>
@@ -267,43 +280,43 @@ export function ContractsClient({
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold">
+                      <td className="px-3 py-3">
+                        <div className="font-semibold whitespace-nowrap">
                           {((c as any).total_amount > 0
                             ? Number((c as any).total_amount)
                             : c.monthly_rent * 12
                           ).toLocaleString('ar-AE')} د.إ
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        <div>
+                      <td className="px-3 py-3 text-muted-foreground">
+                        <div className="whitespace-nowrap text-xs font-medium">
                           {(c as any).payment_amount > 0
                             ? `${Number((c as any).payment_amount).toLocaleString('ar-AE')} د.إ`
                             : `${c.monthly_rent.toLocaleString('ar-AE')} د.إ`
                           }
                         </div>
-                        <div className="text-xs text-muted-foreground/70">
+                        <div className="text-xs text-muted-foreground/70 whitespace-nowrap">
                           {paymentMethodLabel(c)}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         {(c as any).contract_type === 'part_time' ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
-                            🟡 دوام جزئي
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 whitespace-nowrap">
+                            🟡 جزئي
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            🔵 دوام كامل
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
+                            🔵 كامل
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <StatusBadge status={c.status} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <Link
                           href={`/dashboard/contracts/${c.id}`}
-                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
                         >
                           <ExternalLink className="h-3.5 w-3.5" />
                           تفاصيل
