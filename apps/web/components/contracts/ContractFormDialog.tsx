@@ -135,7 +135,7 @@ export function ContractFormDialog({
     defaultValues: {
       unit_id:           '',
       tenant_id:         '',
-      contract_type:     'full_time' as const,
+      contract_type:     'part_time' as const,
       start_date:        '',
       end_date:          '',
       total_amount:      '',
