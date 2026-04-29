@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useMemo, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { format, isPast, parseISO, isThisMonth, isFuture } from 'date-fns'
 import { ar } from 'date-fns/locale'
 import {
@@ -122,6 +123,23 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
   const [detailOpen, setDetailOpen]         = useState(false)
   const [editInvoice, setEditInvoice]       = useState<InvoiceRow | null>(null)
   const [editOpen, setEditOpen]             = useState(false)
+
+  // ── Realtime: refresh page on any invoice change ─────────────────────────
+  const dialogOpenRef = useRef(false)
+  useEffect(() => {
+    dialogOpenRef.current = createOpen || paymentOpen || detailOpen || editOpen
+  }, [createOpen, paymentOpen, detailOpen, editOpen])
+
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('invoices-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
+        if (!dialogOpenRef.current) router.refresh()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [router])
 
   const [search, setSearch]                 = useState(defaultSearch ?? '')
   const [statusFilter, setStatusFilter]     = useState<string>('all')

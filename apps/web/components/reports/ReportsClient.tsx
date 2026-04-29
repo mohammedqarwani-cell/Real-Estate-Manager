@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useRef, useMemo, useCallback } from 'react'
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { format, subMonths, startOfMonth, differenceInDays, parseISO, getYear } from 'date-fns'
 import { ar } from 'date-fns/locale'
 import {
@@ -209,12 +211,25 @@ export function ReportsClient({
   overdueInvoices,
   bookings,
 }: ReportsClientProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabId>('financial')
   const [financialPeriod, setFinancialPeriod] = useState<'monthly' | 'yearly'>('monthly')
   const [businessPeriod, setBusinessPeriod] = useState<'monthly' | 'yearly'>('monthly')
   const [pdfLoading, setPdfLoading] = useState(false)
 
   const financialChartRef = useRef<HTMLDivElement>(null)
+
+  // ── Realtime: refresh on any change to invoices / units / bookings ────────
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('reports-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => router.refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'units' },    () => router.refresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => router.refresh())
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [router])
   const occupancyChartRef = useRef<HTMLDivElement>(null)
   const overdueChartRef   = useRef<HTMLDivElement>(null)
   const businessChartRef  = useRef<HTMLDivElement>(null)
