@@ -35,11 +35,29 @@ export function Combobox({
 
   const selected = options.find((o) => o.value === value)
 
-  const filtered = options.filter(
-    (o) =>
-      o.label.toLowerCase().includes(search.toLowerCase()) ||
-      (o.sub ?? '').toLowerCase().includes(search.toLowerCase())
-  )
+  const q = search.toLowerCase()
+
+  const filtered = options
+    .filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        (o.sub ?? '').toLowerCase().includes(q)
+    )
+    .sort((a, b) => {
+      const aLabel = a.label.toLowerCase()
+      const bLabel = b.label.toLowerCase()
+
+      if (q) {
+        // ما يبدأ بالحرف المكتوب يأتي أولاً
+        const aStarts = aLabel.startsWith(q)
+        const bStarts = bLabel.startsWith(q)
+        if (aStarts && !bStarts) return -1
+        if (!aStarts && bStarts) return 1
+      }
+
+      // ثم ترتيب أبجدي
+      return aLabel.localeCompare(bLabel, 'ar')
+    })
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
