@@ -478,16 +478,14 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
                             <Eye className="h-3.5 w-3.5" />
                             تفاصيل
                           </button>
-                          {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                            <button
-                              onClick={() => { setEditInvoice(inv); setEditOpen(true) }}
-                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                              title="تعديل الفاتورة"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              تعديل
-                            </button>
-                          )}
+                          <button
+                            onClick={() => { setEditInvoice(inv); setEditOpen(true) }}
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                            title="تعديل الفاتورة"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            تعديل
+                          </button>
                           <button
                             onClick={() => handlePrintInvoice(inv)}
                             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"

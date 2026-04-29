@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { AlertTriangle } from 'lucide-react'
 import { createInvoice, updateInvoice, type InvoiceFormState } from '@/app/(dashboard)/dashboard/invoices/actions'
 import type { Tenant, Contract, Unit, Property } from '@repo/types'
 import type { InvoiceRow } from './InvoicesClient'
@@ -127,6 +128,16 @@ export function InvoiceFormDialog({
               المستأجر:{' '}
               <span className="font-medium text-foreground">
                 {invoice!.tenant?.company_name || invoice!.tenant?.full_name || '—'}
+              </span>
+            </div>
+          )}
+
+          {/* Warning for sensitive statuses */}
+          {isEdit && (invoice!.status === 'paid' || invoice!.status === 'cancelled') && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-500" />
+              <span>
+                هذه الفاتورة <strong>{invoice!.status === 'paid' ? 'مدفوعة' : 'ملغاة'}</strong> — أي تعديل سيؤثر على السجلات المالية. تأكد من صحة البيانات قبل الحفظ.
               </span>
             </div>
           )}
