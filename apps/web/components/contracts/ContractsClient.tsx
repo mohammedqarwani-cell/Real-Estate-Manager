@@ -77,19 +77,19 @@ export function ContractsClient({
 }: ContractsClientProps) {
   const router = useRouter()
 
-  // ─── عروض الأعمدة (px) — قابلة للسحب ─────────────────────────────────────
-  const [colWidths, setColWidths] = useState([200, 130, 100, 110, 130, 110, 95, 95, 60])
-  const resizingRef = useRef<{ colIdx: number; startX: number; startW: number } | null>(null)
+  // ─── عرض عمود الاسم — قابل للسحب فقط ────────────────────────────────────
+  const [nameColWidth, setNameColWidth] = useState(200)
+  const resizingRef = useRef<{ startX: number; startW: number } | null>(null)
 
-  const startResize = useCallback((colIdx: number, e: React.MouseEvent) => {
+  const startResize = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    resizingRef.current = { colIdx, startX: e.clientX, startW: colWidths[colIdx] }
+    resizingRef.current = { startX: e.clientX, startW: nameColWidth }
 
     function onMove(ev: MouseEvent) {
       if (!resizingRef.current) return
-      const delta = resizingRef.current.startX - ev.clientX   // RTL: سحب يساراً يزيد العرض
-      const newW  = Math.max(60, resizingRef.current.startW + delta)
-      setColWidths((prev) => prev.map((w, i) => (i === resizingRef.current!.colIdx ? newW : w)))
+      const delta = resizingRef.current.startX - ev.clientX  // RTL
+      const newW  = Math.max(80, resizingRef.current.startW + delta)
+      setNameColWidth(newW)
     }
 
     function onUp() {
@@ -100,7 +100,7 @@ export function ContractsClient({
 
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-  }, [colWidths])
+  }, [nameColWidth])
 
   const [dialogOpen, setDialogOpen]           = useState(false)
   const [statusFilter, setStatusFilter]       = useState<string>('all')
@@ -249,30 +249,35 @@ export function ContractsClient({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="text-sm table-fixed" style={{ width: colWidths.reduce((a, b) => a + b, 0) + 'px', minWidth: '100%' }}>
+            <table className="w-full text-sm table-fixed">
               <colgroup>
-                {colWidths.map((w, i) => <col key={i} style={{ width: w + 'px' }} />)}
+                <col style={{ width: nameColWidth + 'px' }} />
+                <col className="w-[13%]" />
+                <col className="w-[10%]" />
+                <col className="w-[11%]" />
+                <col className="w-[13%]" />
+                <col className="w-[11%]" />
+                <col className="w-[9%]"  />
+                <col className="w-[9%]"  />
+                <col className="w-[5%]"  />
               </colgroup>
               <thead>
                 <tr className="border-b bg-muted/40">
-                  {([
-                    'المستأجر', 'الوحدة', 'البداية', 'النهاية',
-                    'إجمالي الإيجار', 'الدفعة', 'النوع', 'الحالة', '',
-                  ] as const).map((label, i) => (
-                    <th
-                      key={i}
-                      className="relative px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide select-none"
-                      style={{ width: colWidths[i] + 'px' }}
-                    >
-                      <span className="whitespace-nowrap">{label}</span>
-                      {/* handle السحب — على الحافة اليسرى (RTL) */}
-                      {i < 8 && (
-                        <span
-                          onMouseDown={(e) => startResize(i, e)}
-                          className="absolute top-0 left-0 h-full w-1.5 cursor-col-resize hover:bg-primary/30 transition-colors group-hover:bg-primary/20"
-                          title="اسحب لتغيير العرض"
-                        />
-                      )}
+                  {/* عمود الاسم — قابل للسحب */}
+                  <th
+                    className="relative px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide select-none"
+                    style={{ width: nameColWidth + 'px' }}
+                  >
+                    <span className="whitespace-nowrap">المستأجر</span>
+                    <span
+                      onMouseDown={startResize}
+                      className="absolute top-0 left-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 transition-colors"
+                      title="اسحب لتغيير العرض"
+                    />
+                  </th>
+                  {(['الوحدة','البداية','النهاية','إجمالي الإيجار','الدفعة','النوع','الحالة',''] as const).map((label, i) => (
+                    <th key={i} className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                      {label}
                     </th>
                   ))}
                 </tr>
