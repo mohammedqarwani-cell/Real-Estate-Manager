@@ -1,6 +1,6 @@
 # context.md — توثيق مشروع Real Estate Manager
 
-**آخر تحديث:** 2026-04-24 — إضافة نوع العقد (دوام كامل / دوام جزئي) مع فلترة  
+**آخر تحديث:** 2026-04-29 — تجديد العقود، مسودة العقد، فلاتر متقدمة، تحسينات جدول العقود  
 **المسار:** `C:\Projects\real-estate-manager\`
 
 ---
@@ -393,10 +393,42 @@ const supabase = createClient(
 
 ### 8.22 نوع العقد (contract_type) — Migration 014
 - عمود `contract_type TEXT NOT NULL DEFAULT 'full_time'` مع `CHECK (contract_type IN ('full_time', 'part_time'))`.
-- **نموذج إنشاء العقد** (`ContractFormDialog`): حقل Select بخيارَين (🔵 دوام كامل / 🟡 دوام جزئي) — Zod enum مع default `'full_time'`.
+- **الافتراضي في النموذج**: `part_time` (🟡 دوام جزئي).
+- **نموذج إنشاء العقد** (`ContractFormDialog`): حقل Select بخيارَين (🔵 دوام كامل / 🟡 دوام جزئي).
 - **جدول العقود** (`ContractsClient`): عمود "النوع" بـ badge ملوّن + أزرار فلتر (الكل / دوام كامل / دوام جزئي).
-- **صفحة المستأجرين**: فلتر بنوع عقد المستأجر الفعّال — `TenantWithContractCount` يحمل `active_contract_type: string | null` يُجلب من `contracts` query في `tenants/page.tsx`.
-- في `@repo/types`: أضيف `ContractType = 'full_time' | 'part_time'` وحقل `contract_type: ContractType` في interface `Contract`.
+- **صفحة المستأجرين**: فلتر بنوع عقد المستأجر الفعّال — `TenantWithContractCount` يحمل `active_contract_type: string | null`.
+- في `@repo/types`: `ContractType = 'full_time' | 'part_time'` + حقل `contract_type: ContractType` في `Contract`.
+
+### 8.23 تجديد العقد
+- **زر "تجديد العقد"** يظهر في `ContractDetailClient` عندما يكون العقد `active` أو `expired`.
+- **`RenewContractDialog`** (`components/contracts/RenewContractDialog.tsx`):
+  - يُحمَّل مسبقاً بـ: تاريخ البداية = نهاية القديم + 1 يوم، النهاية = +سنة، نفس المبلغ/الدفعات/الشروط.
+  - جدول دفعات قابل للتعديل (نفس ContractFormDialog).
+  - عند التأكيد: العقد القديم → `renewed`، ينشئ عقد جديد `active` + فواتيره، يُعيد التوجيه للعقد الجديد.
+- **`renewContract` action** في `contracts/actions.ts`: يستقبل `oldContractId` + FormData — لا يحتاج unit_id/tenant_id (مأخوذان من القديم).
+- **`RenewFormState`**: `{ success, error, fieldErrors, newContractId? }`.
+
+### 8.24 مسودة العقد
+- نموذج إنشاء العقد يملك زرَّين للإرسال:
+  - **"إنشاء العقد"**: يُفعّل العقد (`status: active`) + يُشغّل الوحدة + ينشئ الفواتير.
+  - **"حفظ كمسودة"**: يحفظ بـ `status: draft` — الوحدة تبقى `available`، لا فواتير تُنشأ.
+- حقل `status` في `contractSchema` و`createContract` action يقبل `'active' | 'draft'`.
+
+### 8.25 تحسينات جدول العقود (ContractsClient)
+- **عرض عمود الاسم قابل للسحب**: handle على الحافة اليسرى للعمود فقط (RTL)، حد أدنى 80px.
+- **فلاتر متقدمة** (panel قابل للطي بزر "فلاتر متقدمة"):
+  - بحث نصي: اسم المستأجر، الشركة، رقم الوحدة، اسم العقار.
+  - فلتر الحالة: أزرار (الكل / ساري / منتهي / ملغي / مسودة / مجدد) مع العدد.
+  - فلتر العقار + فلتر المستأجر (Select).
+  - نوع العقد: أزرار (كل الأنواع / 🔵 كامل / 🟡 جزئي).
+  - "تنتهي خلال": أزرار (30 / 60 / 90 يوم) — للعقود الفعّالة.
+  - نطاق تاريخ البداية (من/إلى) + نطاق تاريخ النهاية (من/إلى).
+  - نطاق المبلغ (من/إلى بالدرهم).
+  - زر "مسح الكل" + عداد النتائج.
+- **ترتيب بالأعمدة** ↕️: المستأجر، البداية، النهاية، إجمالي الإيجار.
+- **Combobox** (`components/ui/combobox.tsx`): نتائج الفلترة مرتّبة أبجدياً — ما يبدأ بالنص أولاً ثم ما يحتويه، `localeCompare('ar')`.
+- **تسمية**: "مُنهى" → **"ملغي"** في جميع الملفات (ContractsClient, [id]/page, TenantDetailClient, UnitDetailDialog).
+- **تسمية**: "إجمالي الإيجار السنوي" → **"إجمالي الإيجار"** (دعم عقود أطول من سنة).
 
 ### 8.21 نظام التقارير وتوليد PDF
 - الحزم المُضافة: `@react-pdf/renderer ^3.4.4`, `xlsx ^0.18.5`
