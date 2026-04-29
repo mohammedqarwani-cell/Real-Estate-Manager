@@ -222,13 +222,12 @@ export function ContractFormDialog({
   const amountMismatch = scheduleRows.length > 0 && Math.abs(scheduleTotalAmount - totalAmount) > 0.5
 
   // ─── Submit ──────────────────────────────────────────────────────────────
-  function onSubmit(values: FormValues) {
-    setServerError(null)
-
+  function buildFormData(values: FormValues, status: 'active' | 'draft'): FormData {
     const formData = new FormData()
     formData.append('unit_id',          values.unit_id)
     formData.append('tenant_id',        values.tenant_id)
     formData.append('contract_type',    values.contract_type)
+    formData.append('status',           status)
     formData.append('start_date',       values.start_date)
     formData.append('end_date',         values.end_date)
     formData.append('total_amount',     totalAmount.toString())
@@ -236,19 +235,33 @@ export function ContractFormDialog({
     formData.append('payment_amount',   paymentAmount.toFixed(2))
     formData.append('security_deposit', values.security_deposit || '0')
     formData.append('terms',            values.terms || '')
-
-    // الجدول المُعدَّل (التواريخ والمبالغ)
     formData.append('schedule', JSON.stringify(
-      scheduleRows.map((r) => ({
-        due_date: r.due_date,
-        amount:   parseFloat(r.amount.toFixed(2)),
-      }))
+      scheduleRows.map((r) => ({ due_date: r.due_date, amount: parseFloat(r.amount.toFixed(2)) }))
     ))
+    return formData
+  }
 
+  function onSubmit(values: FormValues) {
+    setServerError(null)
     startTransition(async () => {
-      const result = await createContract({ success: false, error: null, fieldErrors: {} }, formData)
+      const result = await createContract({ success: false, error: null, fieldErrors: {} }, buildFormData(values, 'active'))
       if (result.success) {
         toast.success('تم إنشاء العقد والفواتير بنجاح')
+        onOpenChange(false)
+        onSuccess?.()
+      } else {
+        setServerError(result.error)
+        if (result.error) toast.error(result.error)
+      }
+    })
+  }
+
+  function onSaveDraft(values: FormValues) {
+    setServerError(null)
+    startTransition(async () => {
+      const result = await createContract({ success: false, error: null, fieldErrors: {} }, buildFormData(values, 'draft'))
+      if (result.success) {
+        toast.success('تم حفظ العقد كمسودة')
         onOpenChange(false)
         onSuccess?.()
       } else {
@@ -497,9 +510,19 @@ export function ContractFormDialog({
             <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{serverError}</p>
           )}
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="gap-2 pt-2 flex-wrap">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               إلغاء
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isPending}
+              onClick={handleSubmit(onSaveDraft)}
+              className="border-gray-300 text-gray-600 hover:bg-gray-50"
+            >
+              {isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+              حفظ كمسودة
             </Button>
             <Button type="submit" disabled={isPending || paymentCount < 1}>
               {isPending && <Loader2 className="h-4 w-4 animate-spin" />}

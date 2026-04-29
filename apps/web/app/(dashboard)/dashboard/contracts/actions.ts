@@ -14,6 +14,7 @@ const contractSchema = z.object({
   unit_id:        z.string().uuid('يرجى اختيار وحدة'),
   tenant_id:      z.string().uuid('يرجى اختيار مستأجر'),
   contract_type:  z.enum(['full_time', 'part_time']).default('full_time'),
+  status:         z.enum(['active', 'draft']).default('active'),
   start_date:     z.string().min(1, 'تاريخ البداية مطلوب'),
   end_date:       z.string().min(1, 'تاريخ النهاية مطلوب'),
   total_amount:   z.coerce.number().positive('إجمالي الإيجار يجب أن يكون موجباً'),
@@ -40,6 +41,7 @@ export async function createContract(
     unit_id:          formData.get('unit_id'),
     tenant_id:        formData.get('tenant_id'),
     contract_type:    formData.get('contract_type') || 'full_time',
+    status:           formData.get('status') || 'active',
     start_date:       formData.get('start_date'),
     end_date:         formData.get('end_date'),
     total_amount:     formData.get('total_amount'),
@@ -121,13 +123,15 @@ export async function createContract(
 
   const contractId: string = newContract?.id
 
-  // Mark unit as occupied
-  await (supabase.from('units') as any)
-    .update({ status: 'occupied' })
-    .eq('id', parsed.data.unit_id)
+  // المسودة لا تُشغّل الوحدة ولا تُنشئ فواتير
+  if (parsed.data.status === 'active') {
+    await (supabase.from('units') as any)
+      .update({ status: 'occupied' })
+      .eq('id', parsed.data.unit_id)
+  }
 
-  // Auto-create invoices for each scheduled payment
-  if (schedule.length > 0 && contractId) {
+  // Auto-create invoices (فقط إذا كان العقد ساري)
+  if (parsed.data.status === 'active' && schedule.length > 0 && contractId) {
     const invoicesPayload = schedule.map((item, i) => ({
       contract_id:  contractId,
       tenant_id:    parsed.data.tenant_id,
@@ -253,7 +257,7 @@ export async function renewContract(
       payment_cycle:    'monthly',
       payment_day:      1,
       terms:            parsed.data.terms ?? null,
-      status:           'active',
+      status:           parsed.data.status,
       company_id,
     })
     .select('id')
