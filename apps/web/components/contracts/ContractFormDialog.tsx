@@ -140,7 +140,7 @@ export function ContractFormDialog({
       end_date:          '',
       total_amount:      '',
       security_deposit:  '0',
-      payment_count_key: '12',
+      payment_count_key: '1',
       custom_count:      '',
       terms:             '',
     },
@@ -156,7 +156,7 @@ export function ContractFormDialog({
         end_date:          '',
         total_amount:      '',
         security_deposit:  '0',
-        payment_count_key: '12',
+        payment_count_key: '1',
         custom_count:      '',
         terms:             '',
       })
