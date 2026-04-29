@@ -461,7 +461,7 @@ const supabase = createClient(
 - **Chart Snapshot**: تحويل SVG الـ Recharts إلى PNG عبر `XMLSerializer` + `Canvas API` بدون html2canvas.
 - **خط عربي**: Cairo من CDN `@fontsource/cairo` — يستلزم إنترنت. للإنتاج: حمّل Cairo.woff إلى `public/fonts/` وعدّل `fonts.ts`.
 - **تصدير Excel**: `xlsx` مع `exportToExcel()` في `lib/excel-export.ts` — تصدير مباشر client-side.
-- **صفحة التقارير** (`/dashboard/reports`): 4 تبويبات (مالي / إشغال / متأخرات / بزنس سنتر)، كل تبويب: Recharts chart + جدول + Excel + PDF.
+- **صفحة التقارير** (`/dashboard/reports`): 4 تبويبات (مالي / إشغال / متأخرات / قاعات الاجتماع)، كل تبويب: Recharts chart + جدول + Excel + PDF.
 - **زر طباعة العقد**: في `ContractDetailClient` — يستقبل `contract?: ContractForPDF` من `[id]/page.tsx`.
 - **زر طباعة الفاتورة**: أيقونة Printer تظهر عند hover على صف الفاتورة في `InvoicesClient`.
 

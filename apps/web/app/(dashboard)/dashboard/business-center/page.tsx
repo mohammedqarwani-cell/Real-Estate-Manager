@@ -2,7 +2,7 @@ import { createServerClient }      from '@/lib/supabase/server'
 import { startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { BusinessCenterClient }    from '@/components/business-center/BusinessCenterClient'
 
-export const metadata = { title: 'البزنس سنتر' }
+export const metadata = { title: 'قاعات الاجتماع' }
 
 export default async function BusinessCenterPage() {
   const supabase = await createServerClient()
@@ -97,9 +97,9 @@ export default async function BusinessCenterPage() {
   return (
     <div className="space-y-6" dir="rtl">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">البزنس سنتر</h1>
+        <h1 className="text-2xl font-bold text-foreground">قاعات الاجتماع</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          إدارة قاعات الاجتماعات وحجوزات البزنس سنتر
+          إدارة قاعات الاجتماع والحجوزات
         </p>
       </div>
 

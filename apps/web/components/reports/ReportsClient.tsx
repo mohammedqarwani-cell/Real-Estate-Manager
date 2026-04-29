@@ -453,7 +453,7 @@ export function ReportsClient({
         String(r.count),
       ])
       await downloadReportPDF({
-        title: 'إيرادات البزنس سنتر',
+        title: 'إيرادات قاعات الاجتماع',
         subtitle: businessPeriod === 'monthly' ? 'إيرادات قاعات الاجتماعات شهرياً' : 'إيرادات قاعات الاجتماعات سنوياً',
         period: '',
         generatedAt: format(new Date(), 'dd/MM/yyyy HH:mm'),
@@ -528,7 +528,7 @@ export function ReportsClient({
     { id: 'financial',  label: 'التقرير المالي',      icon: TrendingUp },
     { id: 'occupancy',  label: 'تقرير الإشغال',       icon: Building2 },
     { id: 'overdue',    label: 'تقرير المتأخرات',     icon: AlertTriangle },
-    { id: 'business',   label: 'إيرادات البزنس سنتر', icon: CalendarCheck },
+    { id: 'business',   label: 'إيرادات قاعات الاجتماع', icon: CalendarCheck },
   ]
 
   return (
@@ -856,7 +856,7 @@ export function ReportsClient({
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold">إيرادات البزنس سنتر</h2>
+              <h2 className="text-lg font-semibold">إيرادات قاعات الاجتماع</h2>
               <Select
                 value={businessPeriod}
                 onValueChange={(v) => setBusinessPeriod(v as 'monthly' | 'yearly')}

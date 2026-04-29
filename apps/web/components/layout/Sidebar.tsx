@@ -66,7 +66,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: '/dashboard/business-center',
-    label: 'البزنس سنتر',
+    label: 'قاعات الاجتماع',
     icon: CalendarCheck,
     roles: ['admin', 'manager', 'receptionist'],
   },
