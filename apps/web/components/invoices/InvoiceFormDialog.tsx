@@ -1,7 +1,6 @@
 'use client'
 
-import { useEffect, useActionState } from 'react'
-import { useTransition } from 'react'
+import { useEffect, useActionState, useTransition } from 'react'
 import { toast } from 'sonner'
 import {
   Dialog,
@@ -21,8 +20,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { createInvoice, type InvoiceFormState } from '@/app/(dashboard)/dashboard/invoices/actions'
+import { createInvoice, updateInvoice, type InvoiceFormState } from '@/app/(dashboard)/dashboard/invoices/actions'
 import type { Tenant, Contract, Unit, Property } from '@repo/types'
+import type { InvoiceRow } from './InvoicesClient'
 
 type ContractWithUnit = Contract & {
   unit: (Unit & { property: Pick<Property, 'id' | 'name'> }) | null
@@ -34,6 +34,7 @@ interface InvoiceFormDialogProps {
   onSuccess: () => void
   tenants: (Pick<Tenant, 'id' | 'full_name'> & { company_name?: string | null })[]
   contracts: ContractWithUnit[]
+  invoice?: InvoiceRow | null   // when set → edit mode
 }
 
 const INVOICE_TYPES = [
@@ -44,6 +45,15 @@ const INVOICE_TYPES = [
   { value: 'other',       label: 'أخرى' },
 ]
 
+const INVOICE_STATUSES = [
+  { value: 'pending',   label: 'معلقة' },
+  { value: 'paid',      label: 'مدفوعة' },
+  { value: 'overdue',   label: 'متأخرة' },
+  { value: 'partial',   label: 'مدفوعة جزئياً' },
+  { value: 'draft',     label: 'مسودة' },
+  { value: 'cancelled', label: 'ملغاة' },
+]
+
 const initialState: InvoiceFormState = { success: false, error: null, fieldErrors: {} }
 
 export function InvoiceFormDialog({
@@ -52,14 +62,22 @@ export function InvoiceFormDialog({
   onSuccess,
   tenants,
   contracts,
+  invoice,
 }: InvoiceFormDialogProps) {
-  const [isPending, startTransition] = useTransition()
-  const [state, formAction] = useActionState(createInvoice, initialState)
+  const isEdit = !!invoice
 
-  // Watch for success
+  const [isPending, startTransition] = useTransition()
+
+  // bind the action to invoice id when editing
+  const boundAction = isEdit
+    ? updateInvoice.bind(null, invoice!.id)
+    : createInvoice
+
+  const [state, formAction, pending] = useActionState(boundAction, initialState)
+
   useEffect(() => {
     if (state.success) {
-      toast.success('تم إنشاء الفاتورة بنجاح')
+      toast.success(isEdit ? 'تم تعديل الفاتورة بنجاح' : 'تم إنشاء الفاتورة بنجاح')
       onSuccess()
       onOpenChange(false)
     }
@@ -78,30 +96,43 @@ export function InvoiceFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg" dir="rtl">
         <DialogHeader>
-          <DialogTitle>إنشاء فاتورة جديدة</DialogTitle>
+          <DialogTitle>{isEdit ? 'تعديل الفاتورة' : 'إنشاء فاتورة جديدة'}</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
-          {/* Tenant */}
-          <div className="space-y-1.5">
-            <Label htmlFor="if-tenant">المستأجر *</Label>
-            <Select name="tenant_id" required>
-              <SelectTrigger id="if-tenant">
-                <SelectValue placeholder="اختر مستأجراً" />
-              </SelectTrigger>
-              <SelectContent>
-                {tenants.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>{t.company_name || t.full_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {state.fieldErrors.tenant_id && (
-              <p className="text-xs text-destructive">{state.fieldErrors.tenant_id[0]}</p>
-            )}
-          </div>
 
-          {/* Contract (optional) */}
-          {contracts.length > 0 && (
+          {/* Tenant — shown only in create mode */}
+          {!isEdit && (
+            <div className="space-y-1.5">
+              <Label htmlFor="if-tenant">المستأجر *</Label>
+              <Select name="tenant_id" required>
+                <SelectTrigger id="if-tenant">
+                  <SelectValue placeholder="اختر مستأجراً" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.company_name || t.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {state.fieldErrors.tenant_id && (
+                <p className="text-xs text-destructive">{state.fieldErrors.tenant_id[0]}</p>
+              )}
+            </div>
+          )}
+
+          {/* Tenant name (read-only) in edit mode */}
+          {isEdit && (
+            <div className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+              المستأجر:{' '}
+              <span className="font-medium text-foreground">
+                {invoice!.tenant?.company_name || invoice!.tenant?.full_name || '—'}
+              </span>
+            </div>
+          )}
+
+          {/* Contract (optional) — create mode only */}
+          {!isEdit && contracts.length > 0 && (
             <div className="space-y-1.5">
               <Label htmlFor="if-contract">العقد (اختياري)</Label>
               <Select name="contract_id">
@@ -124,7 +155,7 @@ export function InvoiceFormDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="if-type">نوع الفاتورة *</Label>
-              <Select name="type" defaultValue="rent">
+              <Select name="type" defaultValue={invoice?.type ?? 'rent'}>
                 <SelectTrigger id="if-type">
                   <SelectValue />
                 </SelectTrigger>
@@ -145,6 +176,7 @@ export function InvoiceFormDialog({
                 min="0"
                 step="0.01"
                 placeholder="0.00"
+                defaultValue={invoice?.amount ?? ''}
                 required
               />
               {state.fieldErrors.amount && (
@@ -163,7 +195,7 @@ export function InvoiceFormDialog({
                 type="number"
                 min="0"
                 step="0.01"
-                defaultValue="0"
+                defaultValue={invoice?.tax_amount ?? 0}
                 placeholder="0.00"
               />
             </div>
@@ -174,6 +206,7 @@ export function InvoiceFormDialog({
                 id="if-due"
                 name="due_date"
                 type="date"
+                defaultValue={invoice?.due_date?.slice(0, 10) ?? ''}
                 required
               />
               {state.fieldErrors.due_date && (
@@ -182,10 +215,33 @@ export function InvoiceFormDialog({
             </div>
           </div>
 
+          {/* Status — edit mode only */}
+          {isEdit && (
+            <div className="space-y-1.5">
+              <Label htmlFor="if-status">الحالة</Label>
+              <Select name="status" defaultValue={invoice!.status}>
+                <SelectTrigger id="if-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {INVOICE_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Notes */}
           <div className="space-y-1.5">
             <Label htmlFor="if-notes">ملاحظات</Label>
-            <Textarea id="if-notes" name="notes" rows={2} placeholder="ملاحظات إضافية..." />
+            <Textarea
+              id="if-notes"
+              name="notes"
+              rows={2}
+              placeholder="ملاحظات إضافية..."
+              defaultValue={invoice?.notes ?? ''}
+            />
           </div>
 
           {state.error && (
@@ -198,8 +254,10 @@ export function InvoiceFormDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               إلغاء
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? 'جاري الإنشاء...' : 'إنشاء الفاتورة'}
+            <Button type="submit" disabled={isPending || pending}>
+              {isPending || pending
+                ? (isEdit ? 'جاري الحفظ...' : 'جاري الإنشاء...')
+                : (isEdit ? 'حفظ التعديلات' : 'إنشاء الفاتورة')}
             </Button>
           </DialogFooter>
         </form>

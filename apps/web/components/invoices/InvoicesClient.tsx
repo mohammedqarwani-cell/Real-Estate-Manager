@@ -18,6 +18,7 @@ import {
   Printer,
   CalendarDays,
   Eye,
+  Pencil,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -119,6 +120,8 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
   const [paymentOpen, setPaymentOpen]       = useState(false)
   const [detailInvoice, setDetailInvoice]   = useState<InvoiceRow | null>(null)
   const [detailOpen, setDetailOpen]         = useState(false)
+  const [editInvoice, setEditInvoice]       = useState<InvoiceRow | null>(null)
+  const [editOpen, setEditOpen]             = useState(false)
 
   const [search, setSearch]                 = useState(defaultSearch ?? '')
   const [statusFilter, setStatusFilter]     = useState<string>('all')
@@ -475,6 +478,16 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
                             <Eye className="h-3.5 w-3.5" />
                             تفاصيل
                           </button>
+                          {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                            <button
+                              onClick={() => { setEditInvoice(inv); setEditOpen(true) }}
+                              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                              title="تعديل الفاتورة"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              تعديل
+                            </button>
+                          )}
                           <button
                             onClick={() => handlePrintInvoice(inv)}
                             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
@@ -544,6 +557,15 @@ export function InvoicesClient({ invoices, tenants, contracts, properties, defau
         open={detailOpen}
         onOpenChange={setDetailOpen}
         invoice={detailInvoice}
+      />
+
+      <InvoiceFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSuccess={() => router.refresh()}
+        tenants={tenants}
+        contracts={contracts}
+        invoice={editInvoice}
       />
     </div>
   )

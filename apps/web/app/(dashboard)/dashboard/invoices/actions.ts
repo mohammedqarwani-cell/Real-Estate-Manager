@@ -191,6 +191,63 @@ export async function generateAllSchedules(): Promise<{
   return { success: true, created, skipped, error: null }
 }
 
+export async function updateInvoice(
+  invoiceId: string,
+  _prev: InvoiceFormState,
+  formData: FormData
+): Promise<InvoiceFormState> {
+  const raw = {
+    type:       formData.get('type') || 'rent',
+    amount:     formData.get('amount'),
+    tax_amount: formData.get('tax_amount') || '0',
+    due_date:   formData.get('due_date'),
+    notes:      formData.get('notes') || null,
+    status:     formData.get('status') || undefined,
+  }
+
+  const schema = z.object({
+    type:       z.enum(['rent', 'maintenance', 'utility', 'deposit', 'other']).default('rent'),
+    amount:     z.coerce.number().positive('المبلغ يجب أن يكون موجباً'),
+    tax_amount: z.coerce.number().min(0).default(0),
+    due_date:   z.string().min(1, 'تاريخ الاستحقاق مطلوب'),
+    notes:      z.string().optional().nullable(),
+    status:     z.enum(['draft', 'pending', 'paid', 'overdue', 'partial', 'cancelled']).optional(),
+  })
+
+  const parsed = schema.safeParse(raw)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'يرجى تصحيح الأخطاء في النموذج',
+      fieldErrors: parsed.error.flatten().fieldErrors as Record<string, string[]>,
+    }
+  }
+
+  const total_amount = parsed.data.amount + parsed.data.tax_amount
+
+  const supabase = await createServerClient()
+  const updatePayload: Record<string, unknown> = {
+    type:         parsed.data.type,
+    amount:       parsed.data.amount,
+    tax_amount:   parsed.data.tax_amount,
+    total_amount,
+    due_date:     parsed.data.due_date,
+    notes:        parsed.data.notes ?? null,
+  }
+  if (parsed.data.status) updatePayload.status = parsed.data.status
+
+  const { error } = await (supabase.from('invoices') as any)
+    .update(updatePayload)
+    .eq('id', invoiceId)
+
+  if (error) {
+    return { success: false, error: 'حدث خطأ أثناء تعديل الفاتورة: ' + error.message, fieldErrors: {} }
+  }
+
+  revalidatePath('/dashboard/invoices')
+  return { success: true, error: null, fieldErrors: {} }
+}
+
 export async function cancelInvoice(
   invoiceId: string
 ): Promise<{ success: boolean; error: string | null }> {
