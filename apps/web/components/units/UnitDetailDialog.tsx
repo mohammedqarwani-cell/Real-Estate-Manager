@@ -47,7 +47,7 @@ const CONTRACT_STATUS_CONFIG: Record<ContractStatus, { label: string; className:
   active: { label: 'نشط', className: 'bg-green-100 text-green-700' },
   draft: { label: 'مسودة', className: 'bg-gray-100 text-gray-600' },
   expired: { label: 'منتهي', className: 'bg-red-100 text-red-700' },
-  terminated: { label: 'مُنهى', className: 'bg-red-100 text-red-700' },
+  terminated: { label: 'ملغي', className: 'bg-red-100 text-red-700' },
   renewed: { label: 'مُجدَّد', className: 'bg-blue-100 text-blue-700' },
 }
 

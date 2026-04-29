@@ -27,7 +27,7 @@ const STATUS_CONFIG: Record<ContractStatus, { label: string; className: string; 
   draft:      { label: 'مسودة',  className: 'bg-gray-100 text-gray-600',    dotClass: 'bg-gray-400'   },
   active:     { label: 'ساري',   className: 'bg-green-100 text-green-700',  dotClass: 'bg-green-500'  },
   expired:    { label: 'منتهي',  className: 'bg-red-100 text-red-700',      dotClass: 'bg-red-500'    },
-  terminated: { label: 'مُنهى', className: 'bg-orange-100 text-orange-700', dotClass: 'bg-orange-500' },
+  terminated: { label: 'ملغي', className: 'bg-orange-100 text-orange-700', dotClass: 'bg-orange-500' },
   renewed:    { label: 'مجدد',   className: 'bg-blue-100 text-blue-700',    dotClass: 'bg-blue-500'   },
 }
 
