@@ -5,8 +5,12 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { format, differenceInDays } from 'date-fns'
 import { ar } from 'date-fns/locale'
-import { Plus, FileText, AlertTriangle, ExternalLink } from 'lucide-react'
+import {
+  Plus, FileText, AlertTriangle, ExternalLink,
+  Search, SlidersHorizontal, X, ChevronUp, ChevronDown, ArrowUpDown,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Input }  from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -102,22 +106,120 @@ export function ContractsClient({
     window.addEventListener('mouseup', onUp)
   }, [nameColWidth])
 
-  const [dialogOpen, setDialogOpen]           = useState(false)
-  const [statusFilter, setStatusFilter]       = useState<string>('all')
-  const [propertyFilter, setPropertyFilter]   = useState<string>('all')
-  const [tenantFilter, setTenantFilter]       = useState<string>('all')
-  const [contractTypeFilter, setContractTypeFilter] = useState<string>('all')
+  const [dialogOpen, setDialogOpen]                 = useState(false)
+  const [showAdvanced, setShowAdvanced]             = useState(false)
 
+  // ─── فلاتر ────────────────────────────────────────────────────────────────
+  const [search, setSearch]                         = useState('')
+  const [statusFilter, setStatusFilter]             = useState<string>('all')
+  const [propertyFilter, setPropertyFilter]         = useState<string>('all')
+  const [tenantFilter, setTenantFilter]             = useState<string>('all')
+  const [contractTypeFilter, setContractTypeFilter] = useState<string>('all')
+  const [expiringFilter, setExpiringFilter]         = useState<number | null>(null) // أيام
+  const [startFrom, setStartFrom]                   = useState('')
+  const [startTo, setStartTo]                       = useState('')
+  const [endFrom, setEndFrom]                       = useState('')
+  const [endTo, setEndTo]                           = useState('')
+  const [amountMin, setAmountMin]                   = useState('')
+  const [amountMax, setAmountMax]                   = useState('')
+
+  // ─── ترتيب ────────────────────────────────────────────────────────────────
+  type SortKey = 'tenant' | 'start_date' | 'end_date' | 'total_amount' | null
+  type SortDir = 'asc' | 'desc'
+  const [sortKey, setSortKey] = useState<SortKey>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  // ─── مسح كل الفلاتر ───────────────────────────────────────────────────────
+  function clearAll() {
+    setSearch(''); setStatusFilter('all'); setPropertyFilter('all')
+    setTenantFilter('all'); setContractTypeFilter('all'); setExpiringFilter(null)
+    setStartFrom(''); setStartTo(''); setEndFrom(''); setEndTo('')
+    setAmountMin(''); setAmountMax(''); setSortKey(null); setSortDir('asc')
+  }
+
+  const hasActiveFilters = search || statusFilter !== 'all' || propertyFilter !== 'all' ||
+    tenantFilter !== 'all' || contractTypeFilter !== 'all' || expiringFilter !== null ||
+    startFrom || startTo || endFrom || endTo || amountMin || amountMax
+
+  // ─── منطق الفلترة والترتيب ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let data = contracts
+
+    // بحث نصي: اسم المستأجر، اسم الشركة، رقم الوحدة، اسم العقار
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      data = data.filter((c) =>
+        c.tenant?.full_name?.toLowerCase().includes(q) ||
+        c.tenant?.company_name?.toLowerCase().includes(q) ||
+        c.unit?.unit_number?.toLowerCase().includes(q) ||
+        (c.unit as any)?.property?.name?.toLowerCase().includes(q)
+      )
+    }
+
     if (statusFilter !== 'all') data = data.filter((c) => c.status === statusFilter)
     if (propertyFilter !== 'all')
       data = data.filter((c) => (c.unit as any)?.property?.id === propertyFilter)
     if (tenantFilter !== 'all') data = data.filter((c) => c.tenant_id === tenantFilter)
     if (contractTypeFilter !== 'all')
       data = data.filter((c) => (c as any).contract_type === contractTypeFilter)
+
+    // فلتر "تنتهي قريباً"
+    if (expiringFilter !== null) {
+      data = data.filter((c) => {
+        if (c.status !== 'active') return false
+        const days = differenceInDays(new Date(c.end_date), new Date())
+        return days >= 0 && days <= expiringFilter
+      })
+    }
+
+    // نطاق تاريخ البداية
+    if (startFrom) data = data.filter((c) => c.start_date >= startFrom)
+    if (startTo)   data = data.filter((c) => c.start_date <= startTo)
+
+    // نطاق تاريخ النهاية
+    if (endFrom) data = data.filter((c) => c.end_date >= endFrom)
+    if (endTo)   data = data.filter((c) => c.end_date <= endTo)
+
+    // نطاق المبلغ
+    const minAmt = parseFloat(amountMin)
+    const maxAmt = parseFloat(amountMax)
+    if (!isNaN(minAmt)) data = data.filter((c) => {
+      const amt = (c as any).total_amount > 0 ? Number((c as any).total_amount) : c.monthly_rent * 12
+      return amt >= minAmt
+    })
+    if (!isNaN(maxAmt)) data = data.filter((c) => {
+      const amt = (c as any).total_amount > 0 ? Number((c as any).total_amount) : c.monthly_rent * 12
+      return amt <= maxAmt
+    })
+
+    // الترتيب
+    if (sortKey) {
+      data = [...data].sort((a, b) => {
+        let av: string | number = ''
+        let bv: string | number = ''
+        if (sortKey === 'tenant') {
+          av = (a.tenant?.company_name || a.tenant?.full_name || '').toLowerCase()
+          bv = (b.tenant?.company_name || b.tenant?.full_name || '').toLowerCase()
+        } else if (sortKey === 'start_date') { av = a.start_date; bv = b.start_date }
+        else if (sortKey === 'end_date')   { av = a.end_date;   bv = b.end_date   }
+        else if (sortKey === 'total_amount') {
+          av = (a as any).total_amount > 0 ? Number((a as any).total_amount) : a.monthly_rent * 12
+          bv = (b as any).total_amount > 0 ? Number((b as any).total_amount) : b.monthly_rent * 12
+        }
+        if (av < bv) return sortDir === 'asc' ? -1 : 1
+        if (av > bv) return sortDir === 'asc' ?  1 : -1
+        return 0
+      })
+    }
+
     return data
-  }, [contracts, statusFilter, propertyFilter, tenantFilter, contractTypeFilter])
+  }, [contracts, search, statusFilter, propertyFilter, tenantFilter, contractTypeFilter,
+      expiringFilter, startFrom, startTo, endFrom, endTo, amountMin, amountMax, sortKey, sortDir])
 
   const expiringCount = useMemo(
     () =>
@@ -153,9 +255,45 @@ export function ContractsClient({
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center" dir="rtl">
-        {/* Status filter buttons */}
+      {/* ─── شريط الفلاتر ──────────────────────────────────────────────────── */}
+      <div className="space-y-3" dir="rtl">
+
+        {/* صف 1: بحث + زر الفلاتر المتقدمة + مسح */}
+        <div className="flex gap-2 items-center">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="بحث بالاسم، الوحدة، العقار..."
+              className="pr-9 h-9"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant="outline" size="sm"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className={`gap-1.5 h-9 ${showAdvanced ? 'border-primary text-primary' : ''}`}
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            فلاتر متقدمة
+            {hasActiveFilters && (
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            )}
+          </Button>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearAll} className="gap-1 h-9 text-muted-foreground hover:text-destructive">
+              <X className="h-3.5 w-3.5" />
+              مسح الكل
+            </Button>
+          )}
+        </div>
+
+        {/* صف 2: فلاتر الحالة */}
         <div className="flex flex-wrap gap-2">
           {(['all', 'active', 'expired', 'terminated', 'draft', 'renewed'] as const).map((s) => {
             const count = s === 'all' ? contracts.length : contracts.filter((c) => c.status === s).length
@@ -180,56 +318,117 @@ export function ContractsClient({
           })}
         </div>
 
-        {/* Property filter */}
-        {properties.length > 0 && (
-          <Select value={propertyFilter} onValueChange={setPropertyFilter}>
-            <SelectTrigger className="w-[180px] h-9">
-              <SelectValue placeholder="كل العقارات" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">كل العقارات</SelectItem>
-              {properties.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* صف 3: فلاتر متقدمة (قابل للطي) */}
+        {showAdvanced && (
+          <div className="rounded-xl border bg-muted/30 p-4 space-y-4">
+
+            {/* صف: العقار + المستأجر + نوع العقد + تنتهي قريباً */}
+            <div className="flex flex-wrap gap-3 items-center">
+              {properties.length > 0 && (
+                <Select value={propertyFilter} onValueChange={setPropertyFilter}>
+                  <SelectTrigger className="w-[160px] h-9">
+                    <SelectValue placeholder="كل العقارات" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">كل العقارات</SelectItem>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <Select value={tenantFilter} onValueChange={setTenantFilter}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue placeholder="كل المستأجرين" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">كل المستأجرين</SelectItem>
+                  {tenants.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.company_name || t.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* نوع العقد */}
+              <div className="flex gap-1.5">
+                {([
+                  { value: 'all',       label: 'كل الأنواع' },
+                  { value: 'full_time', label: '🔵 كامل' },
+                  { value: 'part_time', label: '🟡 جزئي' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setContractTypeFilter(opt.value)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      contractTypeFilter === opt.value
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'border-border hover:bg-muted'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* تنتهي قريباً */}
+              <div className="flex gap-1.5 items-center">
+                <span className="text-xs text-muted-foreground whitespace-nowrap">تنتهي خلال:</span>
+                {[30, 60, 90].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setExpiringFilter(expiringFilter === d ? null : d)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      expiringFilter === d
+                        ? 'bg-amber-500 text-white border-amber-500'
+                        : 'border-border hover:bg-muted'
+                    }`}
+                  >
+                    {d} يوم
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* صف: نطاق تاريخ البداية + النهاية */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">تاريخ البداية</p>
+                <div className="flex gap-2 items-center">
+                  <Input type="date" value={startFrom} onChange={(e) => setStartFrom(e.target.value)} className="h-8 text-xs" />
+                  <span className="text-muted-foreground text-xs">←</span>
+                  <Input type="date" value={startTo}   onChange={(e) => setStartTo(e.target.value)}   className="h-8 text-xs" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-muted-foreground">تاريخ النهاية</p>
+                <div className="flex gap-2 items-center">
+                  <Input type="date" value={endFrom} onChange={(e) => setEndFrom(e.target.value)} className="h-8 text-xs" />
+                  <span className="text-muted-foreground text-xs">←</span>
+                  <Input type="date" value={endTo}   onChange={(e) => setEndTo(e.target.value)}   className="h-8 text-xs" />
+                </div>
+              </div>
+            </div>
+
+            {/* صف: نطاق المبلغ */}
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium text-muted-foreground">إجمالي الإيجار (د.إ)</p>
+              <div className="flex gap-2 items-center max-w-xs">
+                <Input type="number" min="0" value={amountMin} onChange={(e) => setAmountMin(e.target.value)} placeholder="من" className="h-8 text-xs" />
+                <span className="text-muted-foreground text-xs">—</span>
+                <Input type="number" min="0" value={amountMax} onChange={(e) => setAmountMax(e.target.value)} placeholder="إلى" className="h-8 text-xs" />
+              </div>
+            </div>
+
+          </div>
         )}
 
-        {/* Tenant filter */}
-        {tenants.length > 0 && (
-          <Select value={tenantFilter} onValueChange={setTenantFilter}>
-            <SelectTrigger className="w-[180px] h-9">
-              <SelectValue placeholder="كل المستأجرين" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">كل المستأجرين</SelectItem>
-              {tenants.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.company_name || t.full_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* عداد النتائج */}
+        {hasActiveFilters && (
+          <p className="text-xs text-muted-foreground">
+            {filtered.length} نتيجة من أصل {contracts.length} عقد
+          </p>
         )}
-
-        {/* Contract type filter */}
-        <div className="flex gap-2">
-          {([
-            { value: 'all',       label: 'الكل' },
-            { value: 'full_time', label: '🔵 دوام كامل' },
-            { value: 'part_time', label: '🟡 دوام جزئي' },
-          ] as const).map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setContractTypeFilter(opt.value)}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
-                contractTypeFilter === opt.value
-                  ? 'bg-foreground text-background border-foreground'
-                  : 'border-border hover:bg-muted'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Table */}
@@ -263,19 +462,51 @@ export function ContractsClient({
               </colgroup>
               <thead>
                 <tr className="border-b bg-muted/40">
-                  {/* عمود الاسم — قابل للسحب */}
+                  {/* عمود الاسم — قابل للسحب + ترتيب */}
                   <th
                     className="relative px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide select-none"
                     style={{ width: nameColWidth + 'px' }}
                   >
-                    <span className="whitespace-nowrap">المستأجر</span>
+                    <button onClick={() => toggleSort('tenant')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                      المستأجر
+                      {sortKey === 'tenant'
+                        ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+                        : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
                     <span
                       onMouseDown={startResize}
                       className="absolute top-0 left-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 transition-colors"
                       title="اسحب لتغيير العرض"
                     />
                   </th>
-                  {(['الوحدة','البداية','النهاية','إجمالي الإيجار','الدفعة','النوع','الحالة',''] as const).map((label, i) => (
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                    الوحدة
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                    <button onClick={() => toggleSort('start_date')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                      البداية
+                      {sortKey === 'start_date'
+                        ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+                        : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                    <button onClick={() => toggleSort('end_date')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                      النهاية
+                      {sortKey === 'end_date'
+                        ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+                        : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
+                  </th>
+                  <th className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
+                    <button onClick={() => toggleSort('total_amount')} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                      إجمالي الإيجار
+                      {sortKey === 'total_amount'
+                        ? (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)
+                        : <ArrowUpDown className="h-3 w-3 opacity-40" />}
+                    </button>
+                  </th>
+                  {(['الدفعة','النوع','الحالة',''] as const).map((label, i) => (
                     <th key={i} className="px-3 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide whitespace-nowrap">
                       {label}
                     </th>
